@@ -1,0 +1,6 @@
+if(CMT_BUILD_BENCH)
+    cmake_minimum_required(VERSION 3.24)
+    message(STATUS "Build benchmarks ON")
+    add_subdirectory(iter)
+    add_subdirectory(cstyle)
+endif()

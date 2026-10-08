@@ -1,0 +1,120 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMT_ENABLE_OPENMP": "TRUE",
+        "CMT_ENABLE_MPI": "TRUE",
+        "CMT_BUILD_TESTS": "TRUE",
+        "CMT_BUILD_BENCH": "TRUE",
+        "CMT_BUILD_EXAMPLES": "TRUE",
+        "CMT_CMAKE_DEBUG": "TRUE",
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "TRUE",
+        "CMAKE_CXX_EXTENSIONS": "FALSE",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "TRUE",
+        "CMAKE_CXX_FLAGS_DEBUG": "-O0 -g3 -ggdb -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-Og -g3 -g -fno-omit-frame-pointer",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE"
+      }
+    },
+    {
+      "name": "conan",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "${sourceDir}/cmake/conan/conan_provider.cmake",
+        "CMAKE_FIND_PACKAGE_PREFER_CONFIG": "TRUE"
+      },
+      "environment": {
+        "PATH": "$env{HOME}/anaconda3/bin:$env{HOME}/miniconda3/bin:$penv{PATH}"
+      }
+    },
+    {
+      "name": "release",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG -march=native -mtune=native",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE"
+      }
+    },
+    {
+      "name": "debug",
+      "hidden": true,
+      "cacheVariables": {
+        "CMT_CMAKE_DEBUG": "TRUE",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_SHARED_LIBS": "TRUE",
+        "CMAKE_VERBOSE_MAKEFILE": "TRUE",
+        "CMAKE_MESSAGE_LOG_LEVEL": "VERBOSE"
+      },
+      "environment": {
+        "VERBOSE": "1"
+      }
+    },
+    {
+      "name": "release-conan",
+      "displayName": "Release|march=native|LTO|conan package manager",
+      "inherits": [
+        "release",
+        "conan",
+        "default"
+      ]
+    },
+    {
+      "name": "debug-conan",
+      "displayName": "Debug|conan package manager",
+      "inherits": [
+        "debug",
+        "conan",
+        "default"
+      ]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release-conan",
+      "configurePreset": "release-conan"
+    },
+    {
+      "name": "debug-conan",
+      "configurePreset": "debug-conan"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "release-conan",
+      "displayName": "Release|conan package manager",
+      "configurePreset": "release-conan",
+      "output": {
+        "verbosity": "extra",
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "debug-conan",
+      "displayName": "Debug|conan package manager",
+      "configurePreset": "debug-conan",
+      "output": {
+        "verbosity": "extra",
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    }
+  ]
+}
