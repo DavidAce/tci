@@ -25,7 +25,7 @@ if(TCI_DEBUG_CMAKE)
 endif()
 
 ### Add all source files
-add_executable(tci
+add_executable(TCI
         source/main.cpp 
         # ...
         )
@@ -41,7 +41,7 @@ find_package(pcg-cpp            REQUIRED)
 find_package(doctest    2.5.3   REQUIRED)
 find_package(nanobench  4.3.11  REQUIRED)
 find_package(CLI11      2.7.2   REQUIRED)
-
+find_package(xfac               REQUIRED)
 
 ### Create a helper target that links dependencies (this target can be used to build tests and benchmarks)
 add_library(tci-libs INTERFACE)
@@ -54,6 +54,7 @@ target_link_libraries(tci-libs INTERFACE pcg-cpp::pcg-cpp )
 target_link_libraries(tci-libs INTERFACE doctest::doctest)
 target_link_libraries(tci-libs INTERFACE nanobench::nanobench)
 target_link_libraries(tci-libs INTERFACE CLI11::CLI11)
+target_link_libraries(tci-libs INTERFACE xfac::xfac)
 
 if(TCI_ENABLE_OPENMP)
     find_package(OpenMP COMPONENTS CXX REQUIRED)
@@ -67,7 +68,7 @@ endif()
 
 
 ### Link targets to the main executable
-target_link_libraries(CMT PUBLIC tci-libs)
+target_link_libraries(TCI PUBLIC tci-libs)
 
 
 ################################################################
@@ -98,5 +99,5 @@ endif()
 if(TCI_CMAKE_DEBUG)
     # Print summary of CMake configuration
     include(cmake/PrintTargetInfo.cmake)
-    print_and_write_project_summary(CMT)
+    print_and_write_project_summary(TCI)
 endif()

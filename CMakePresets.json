@@ -23,7 +23,8 @@
         "CMAKE_POSITION_INDEPENDENT_CODE": "TRUE",
         "CMAKE_CXX_FLAGS_DEBUG": "-O0 -g3 -ggdb -fno-omit-frame-pointer",
         "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-Og -g3 -g -fno-omit-frame-pointer",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE",
+        "CMAKE_PREFIX_PATH": "$env{HOME}/Programs"
       }
     },
     {
