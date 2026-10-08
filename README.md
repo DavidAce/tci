@@ -1,8 +1,7 @@
-[![Ubuntu 22.04](https://github.com/DavidAce/CMakeTemplate/actions/workflows/ubuntu-22.04.yml/badge.svg)](https://github.com/DavidAce/CMakeTemplate/actions/workflows/ubuntu-22.04.yml)
+[![Ubuntu 22.04](https://github.com/DavidAce/tci/actions/workflows/ubuntu-22.04.yml/badge.svg)](https://github.com/DavidAce/tci/actions/workflows/ubuntu-22.04.yml)
 
-# CMake Template
-A template for building C++ projects using modern CMake with dependencies handled by Conan.
-
+# TCI
+Work in progress: trying tensor cross interpolation techniques
 ## Features
 - Unit testing with CTest 
 - Conan integration for dependencies
@@ -27,7 +26,7 @@ Note that `h5pp` itself has the same dependencies, so they should already be pre
 
 
 ## Compatibility
-This template has only been tested in Linux environments.
+Only tested in Linux (Ubuntu) environments.
 
 
 ## Usage with CMake Presets
@@ -40,11 +39,11 @@ Use the bundled CMake Presets to opt-in to automatic dependency installation wit
     pip install conan
     conan profile detect
 
-#### Step 2: Clone CMakeTemplate and list its presets
+#### Step 2: Clone TCI and list its presets
 Open a terminal and run
 
-    git clone https://github.com/DavidAce/CMakeTemplate.git
-    cd CMakeTemplate
+    git clone https://github.com/DavidAce/tci.git
+    cd tci
     cmake --list-presets
     -------------------------------------------------------
     >    Available configure presets:
@@ -58,5 +57,5 @@ Select a preset listed in the previous step, and run
     cmake --preset=release-conan
     cmake --build --preset=release-conan
 
-These commands configure the project and builds the executable at `./build/release-conan/CMT`
+These commands configure the project and builds the executable at `./build/release-conan/tci`
 
