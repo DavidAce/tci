@@ -27,7 +27,9 @@ endif()
 ### Add all source files
 add_executable(TCI
         source/main.cpp 
-        # ...
+        source/func/Ishigami.cpp
+        source/func/Morris2006.cpp
+        source/sens/sens.cpp
         )
 
 target_include_directories(TCI PRIVATE source)
@@ -42,6 +44,7 @@ find_package(doctest    2.5.3   REQUIRED)
 find_package(nanobench  4.3.11  REQUIRED)
 find_package(CLI11      2.7.2   REQUIRED)
 find_package(xfac               REQUIRED)
+# find_package(BLAS               REQUIRED)
 
 ### Create a helper target that links dependencies (this target can be used to build tests and benchmarks)
 add_library(tci-libs INTERFACE)
@@ -68,7 +71,7 @@ endif()
 
 
 ### Link targets to the main executable
-target_link_libraries(TCI PUBLIC tci-libs)
+target_link_libraries(TCI PRIVATE tci-libs)
 
 
 ################################################################

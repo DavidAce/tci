@@ -24,7 +24,8 @@
         "CMAKE_CXX_FLAGS_DEBUG": "-O0 -g3 -ggdb -fno-omit-frame-pointer",
         "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-Og -g3 -g -fno-omit-frame-pointer",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE",
-        "CMAKE_PREFIX_PATH": "$env{HOME}/Programs"
+        "CMAKE_PREFIX_PATH": "$env{HOME}/Programs",
+        "CMAKE_EXE_LINKER_FLAGS": "-Wl,--no-as-needed"
       }
     },
     {
@@ -83,10 +84,12 @@
   "buildPresets": [
     {
       "name": "release-conan",
+      "jobs": 8,
       "configurePreset": "release-conan"
     },
     {
       "name": "debug-conan",
+      "jobs": 8,
       "configurePreset": "debug-conan"
     }
   ],
