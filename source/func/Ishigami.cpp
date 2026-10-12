@@ -16,7 +16,7 @@ double Ishigami::evaluate(const std::vector<double> &x) const {
     return std::sin(x[0]) * (1.0 + b * std::pow(x[2], 4)) + a * std::pow(std::sin(x[1]), 2);
 }
 
-SobolReference Ishigami::exactSobol() const {
+SobolReference Ishigami::exactSobolIndices() const {
     const double p4 = std::pow(pi, 4);
     const double p8 = p4 * p4;
 
@@ -25,5 +25,5 @@ SobolReference Ishigami::exactSobol() const {
     const double v13 = 8 * b * b * p8 / 225;
     const double v   = v1 + v2 + v13;
 
-    return {.first = {v1 / v, v2 / v, 0.0}, .total = {(v1 + v13) / v, v2 / v, v13 / v}, .second = {{0, 2, v13 / v}}};
+    return {.total = {(v1 + v13) / v, v2 / v, v13 / v}, .first = {v1 / v, v2 / v, 0.0}, .second = {{0, 2, v13 / v}}};
 }

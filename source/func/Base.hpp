@@ -11,6 +11,6 @@ class BaseFunction {
     virtual int                        dimension() const                            = 0;
     virtual double                     evaluate(const std::vector<double> &x) const = 0;
     virtual std::pair<double, double>  domain(int i) const                          = 0;
-    virtual sens::util::SobolReference exactSobol() const                           = 0;
+    virtual sens::util::SobolReference exactSobolIndices() const                           = 0;
     virtual std::vector<int>           initialPivot() const { return std::vector<int>(dimension(), 4); }
 };

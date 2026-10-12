@@ -30,7 +30,7 @@ double Morris2006::evaluate(const std::vector<double> &x) const {
     return alpha * sum + beta * pairs;
 }
 
-SobolReference Morris2006::exactSobol() const {
+SobolReference Morris2006::exactSobolIndices() const {
     SobolReference ref;
     ref.first.resize(dim_, 0.0);
     ref.total.resize(dim_, 0.0);

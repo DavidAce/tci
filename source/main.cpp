@@ -1,5 +1,8 @@
+#include "func/CoupledPolynomial.hpp"
 #include "func/Ishigami.hpp"
 #include "func/Morris2006.hpp"
+#include "func/NonlinearPolynomial.hpp"
+#include "quad/quadrature.hpp"
 #include "sens/sens.hpp"
 #include <cmath>
 #include <complex>
@@ -9,7 +12,6 @@
 #include <xfac/grid.h>
 #include <xfac/tensor/tensor_ci.h>
 #include <xfac/tensor/tensor_ci_2.h>
-
 
 auto oscillatory_testfuncton(const std::vector<double> &xs) -> std::complex<double> {
     double x = 0, y = 0, c = 0;
@@ -67,15 +69,26 @@ void ci2() {
     fmt::print("Max absolute tensor error: {:.5e}\n", ci.trueError());
 }
 
-
 int main() {
     // ci1();
     // ci2();
-    const std::vector<double> targets{1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10};
 
-    Ishigami   ishigami;
-    Morris2006 morris(8, 5);
+    const std::vector<double> targets{1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10};
 
-    sens::runSensitivity(ishigami, targets, 15, 30 );
-    sens::runSensitivity(morris, targets, 15, 30);
+    Ishigami            ishigami;
+    Morris2006          morris(8, 5);
+    CoupledPolynomial   cpoly(20);
+    NonlinearPolynomial npoly(16, 0.1);
+
+    sens::runSensitivityAnalysis(ishigami, targets, 5, 30);
+    sens::runSensitivityAnalysis(morris, targets, 5, 30);
+    sens::runSensitivityAnalysis(cpoly, targets, 5, 30);
+    // sens::runSensitivityAnalysis(npoly, {}, 2, 10);
+    // sens::runSensitivityAnalysis(npoly, {}, 4, 10);
+
+    // sens::runSensitivityAnalysis(npoly, {}, 8, 20);
+    // sens::runSensitivityAnalysis(npoly, {}, 16, 20);
+    // sens::runSensitivityAnalysis(npoly, {}, 32, 20);
+
+    // sens::runSensitivityAnalysis(npoly, {}, 64, 10);
 }

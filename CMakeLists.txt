@@ -29,7 +29,12 @@ add_executable(TCI
         source/main.cpp 
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
+        source/func/CoupledPolynomial.cpp
+        source/func/NonlinearPolynomial.cpp
         source/sens/sens.cpp
+        source/quad/ClenshawCurtis.cpp
+        source/quad/GaussKronrod.cpp
+        source/quad/GaussLegendre.cpp
         )
 
 target_include_directories(TCI PRIVATE source)

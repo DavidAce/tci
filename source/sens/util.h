@@ -8,10 +8,16 @@ namespace sens::util {
         double value;
     };
 
+    struct TripleReference {
+        int    i, j, k; // Zero-based variable indices
+        double value;
+    };
+
     struct SobolReference {
-        std::vector<double>        first;
-        std::vector<double>        total;
-        std::vector<PairReference> second;
+        std::vector<double>          total;
+        std::vector<double>          first;
+        std::vector<PairReference>   second;
+        std::vector<TripleReference> third;
     };
 
     struct IndexResult {

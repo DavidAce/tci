@@ -16,6 +16,6 @@ class Morris2006 final : public BaseFunction {
     int                        dimension() const override;
     std::pair<double, double>  domain(int) const override;
     double                     evaluate(const std::vector<double> &x) const override;
-    sens::util::SobolReference exactSobol() const override;
+    sens::util::SobolReference exactSobolIndices() const override;
     std::vector<int>           initialPivot() const override;
 };
