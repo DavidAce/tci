@@ -4,6 +4,7 @@
 #include "rnd/rnd.hpp"
 #include "tt_svd.hpp"
 #include "util.h"
+#include <cmath>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 #include <limits>
@@ -151,18 +152,20 @@ namespace sens {
     }
     template<typename Function>
     std::vector<int> randomInitialPivot(Function &&function, const std::vector<std::vector<double>> &grids) {
+        if(grids.empty()) throw std::invalid_argument("Empty quadrature grids");
         int                 dim   = static_cast<int>(grids.size());
         int                 trial = 0;
         std::vector<int>    pivot1(dim, 0);
         std::vector<double> initial_state(dim, 0);
         while(true) {
             for(int k = 0; k < dim; k++) {
+                if(grids[k].empty()) throw std::invalid_argument("Empty quadrature grid");
                 pivot1[k]        = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
                 initial_state[k] = grids[k][pivot1[k]];
             }
-            double initial_value = function.evaluate(initial_state);
-            if(std::abs(initial_value) > 0) {
-                fmt::print("param.pivot1: {}\n", pivot1);
+            double initial_value = std::abs(function.evaluate(initial_state));
+            if(std::isfinite(initial_value) && initial_value != 0.0) {
+                fmt::print("param.pivot1: {} | value {:.8e}\n", pivot1, initial_value);
                 break;
             }
             if(++trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");

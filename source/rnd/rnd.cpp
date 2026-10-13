@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <mutex>
-#include <omp.h>
 #include <random>
 #include <stdexcept>
 #include <utility>
@@ -38,12 +37,6 @@ namespace rnd {
         decltype(auto) with_rng64_lock(Func &&func) {
             std::scoped_lock lock(rng64_mutex);
             return std::forward<Func>(func)(rng64);
-        }
-
-        template<typename Func>
-        decltype(auto) with_rng128_lock(Func &&func) {
-            std::scoped_lock lock(rng128_mutex);
-            return std::forward<Func>(func)(rng128);
         }
     }
 
@@ -161,11 +154,10 @@ namespace rnd {
         } else if constexpr(std::is_arithmetic_v<out_t>) {
             std::normal_distribution<out_t> distribution(mean, std);
             return internal::with_rng64_lock([&](auto &rng) { return distribution(rng); });
-        }else{
+        } else {
             static_assert(false && "Unreachable");
             throw std::invalid_argument("Wrong type");
         }
-        
     }
     template fp64 normal(fp64 mean, fp64 std);
 
@@ -201,15 +193,17 @@ namespace rnd {
         double                           ul = fmax(lowerLimit, upperLimit);
         double                           ll = fmin(lowerLimit, upperLimit);
         double                           number;
-        while(true) {
-            number = distribution(internal::rng64);
-            if(number >= ll && number <= ul) { return number; }
-        }
+        return internal::with_rng64_lock([&](auto &rng) {
+            while(true) {
+                number = distribution(rng);
+                if(number >= ll && number <= ul) { return number; }
+            }
+        });
     }
 
     template<typename T>
     void shuffle(T &list) {
-        std::shuffle(std::begin(list), std::end(list), internal::rng64);
+        internal::with_rng64_lock([&list](auto &rng) { std::shuffle(std::begin(list), std::end(list), rng); });
     }
     template void shuffle(std::vector<int> &list);
     template void shuffle(std::vector<unsigned> &list);
