@@ -149,6 +149,26 @@ namespace sens {
         }
         return result;
     }
+    template<typename Function>
+    std::vector<int> randomInitialPivot(Function &&function, const std::vector<std::vector<double>> &grids) {
+        int                 dim   = static_cast<int>(grids.size());
+        int                 trial = 0;
+        std::vector<int>    pivot1(dim, 0);
+        std::vector<double> initial_state(dim, 0);
+        while(true) {
+            for(int k = 0; k < dim; k++) {
+                pivot1[k]        = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
+                initial_state[k] = grids[k][pivot1[k]];
+            }
+            double initial_value = function.evaluate(initial_state);
+            if(std::abs(initial_value) > 0) {
+                fmt::print("param.pivot1: {}\n", pivot1);
+                break;
+            }
+            if(++trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
+        }
+        return pivot1;
+    }
 
     template<typename Function, typename TCI>
     void runSensitivityAnalysis_TTSVD(Function &&function, TCI &&ci, const std::vector<std::vector<double>> &grids,
@@ -211,22 +231,7 @@ namespace sens {
         param.bondDim = bondDim;
         param.reltol  = 1e-12;
         param.fullPiv = false;
-
-        int pivot_trial = 0;
-        param.pivot1.resize(dim);
-        std::vector<double> initial_state(dim, 0);
-        while(true) {
-            for(int k = 0; k < dim; k++) {
-                param.pivot1[k]  = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
-                initial_state[k] = grids[k][param.pivot1[k]];
-            }
-            double initial_value = function.evaluate(initial_state);
-            if(std::abs(initial_value) > std::numeric_limits<double>::epsilon()) {
-                fmt::print("param.pivot1: {}\n", param.pivot1);
-                break;
-            }
-            if(++pivot_trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
-        }
+        param.pivot1  = randomInitialPivot(function, grids);
 
         auto f = [&function](const std::vector<double> &x) -> double { return function.evaluate(x); };
         xfac::CTensorCI2<double, double> ci(f, grids, param);
