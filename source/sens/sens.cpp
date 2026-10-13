@@ -4,6 +4,7 @@
 #include "tt_svd.hpp"
 #include "util.h"
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 #include <string>
 #include <xfac/tensor/tensor_ci_2.h>
 
@@ -186,7 +187,7 @@ namespace sens {
     }
 
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
-                                int maxSweeps) {
+                                int maxSweeps, const Quadrature &makeQuadrature) {
         const int  dim        = function.dimension();
         const auto exactSobol = function.exactSobolIndices();
         const bool hasExact   = exactSobol.first.size() == static_cast<std::size_t>(dim) &&
@@ -198,7 +199,7 @@ namespace sens {
 
         for(int k = 0; k < dim; ++k) {
             auto [lo, hi] = function.domain(k);
-            auto rule     = quadrature::gaussKronrod15(lo, hi);
+            auto rule     = makeQuadrature(lo, hi);
             grids[k]      = std::move(rule.nodes);
             weights[k]    = std::move(rule.weights);
         }
@@ -207,9 +208,9 @@ namespace sens {
         param.bondDim = bondDim;
         param.reltol  = 1e-12;
         param.fullPiv = false;
-        // param.pivot1  = function.initialPivot();
-        param.pivot1 = std::vector<int>(dim, 2);
-
+        param.pivot1.resize(dim);
+        for(int k = 0; k < dim; k++) { param.pivot1[k] = static_cast<int>(grids[k].size() / 2); }
+        fmt::print("pivot1: {}\n", param.pivot1);
         auto f = [&function](const std::vector<double> &x) -> double { return function.evaluate(x); };
         xfac::CTensorCI2<double, double> ci(f, grids, param);
 

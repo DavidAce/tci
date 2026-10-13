@@ -79,10 +79,11 @@ int main() {
     Morris2006          morris(8, 5);
     CoupledPolynomial   cpoly(20);
     NonlinearPolynomial npoly(16, 0.1);
+    auto                GK15 = [](double lo, double hi) { return quadrature::gaussKronrod15(lo, hi); };
 
-    sens::runSensitivityAnalysis(ishigami, targets, 5, 30);
-    sens::runSensitivityAnalysis(morris, targets, 5, 30);
-    sens::runSensitivityAnalysis(cpoly, targets, 5, 30);
+    sens::runSensitivityAnalysis(ishigami, targets, 5, 30, GK15);
+    sens::runSensitivityAnalysis(morris, targets, 5, 30, GK15);
+    sens::runSensitivityAnalysis(cpoly, targets, 5, 30, GK15);
     // sens::runSensitivityAnalysis(npoly, {}, 2, 10);
     // sens::runSensitivityAnalysis(npoly, {}, 4, 10);
 
