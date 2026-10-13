@@ -35,6 +35,7 @@ add_executable(TCI
         source/quad/ClenshawCurtis.cpp
         source/quad/GaussKronrod.cpp
         source/quad/GaussLegendre.cpp
+        source/rnd/rnd.cpp
         )
 
 target_include_directories(TCI PRIVATE source)

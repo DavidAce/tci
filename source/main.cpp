@@ -3,6 +3,7 @@
 #include "func/Morris2006.hpp"
 #include "func/NonlinearPolynomial.hpp"
 #include "quad/quadrature.hpp"
+#include "rnd/rnd.hpp"
 #include "sens/sens.hpp"
 #include <cmath>
 #include <complex>
@@ -72,7 +73,7 @@ void ci2() {
 int main() {
     // ci1();
     // ci2();
-
+    rnd::seed(0);
     const std::vector<double> targets{1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10};
 
     Ishigami            ishigami;

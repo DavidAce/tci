@@ -1,10 +1,13 @@
 #include "sens.hpp"
 #include "func/Base.hpp"
 #include "quad/quadrature.hpp"
+#include "rnd/rnd.hpp"
 #include "tt_svd.hpp"
 #include "util.h"
 #include <fmt/core.h>
 #include <fmt/ranges.h>
+#include <limits>
+#include <stdexcept>
 #include <string>
 #include <xfac/tensor/tensor_ci_2.h>
 
@@ -208,9 +211,23 @@ namespace sens {
         param.bondDim = bondDim;
         param.reltol  = 1e-12;
         param.fullPiv = false;
+
+        int pivot_trial = 0;
         param.pivot1.resize(dim);
-        for(int k = 0; k < dim; k++) { param.pivot1[k] = static_cast<int>(grids[k].size() / 2); }
-        fmt::print("pivot1: {}\n", param.pivot1);
+        std::vector<double> initial_state(dim, 0);
+        while(true) {
+            for(int k = 0; k < dim; k++) {
+                param.pivot1[k]  = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
+                initial_state[k] = grids[k][param.pivot1[k]];
+            }
+            double initial_value = function.evaluate(initial_state);
+            if(std::abs(initial_value) > std::numeric_limits<double>::epsilon()) {
+                fmt::print("param.pivot1: {}\n", param.pivot1);
+                break;
+            }
+            if(++pivot_trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
+        }
+
         auto f = [&function](const std::vector<double> &x) -> double { return function.evaluate(x); };
         xfac::CTensorCI2<double, double> ci(f, grids, param);
 
@@ -287,7 +304,7 @@ namespace sens {
 
         while(sweeps < maxSweeps) {
             ci.iterate();
-            report(sweeps, lastResult);
+            report(++sweeps, lastResult);
 
             const auto bondDims = bondDimensions();
 
@@ -312,7 +329,6 @@ namespace sens {
 
             previousResult   = lastResult;
             previousBondDims = bondDims;
-            sweeps++;
         }
 
         // Print results
