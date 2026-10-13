@@ -289,7 +289,7 @@ namespace sens {
         };
 
         constexpr double changeTol          = 1e-12;
-        constexpr int    minSweepsUnchanged = 2;
+        constexpr int    minSweepsUnchanged = 1;
 
         auto isUnchanged = [](double x, double y) {
             return std::abs(x - y) <= changeTol * std::max({1.0, std::abs(x), std::abs(y)});
@@ -310,27 +310,36 @@ namespace sens {
         auto        previousBondDims = bondDimensions();
         std::string stopMsg          = fmt::format("maximum number of sweeps reached ({})", maxSweeps);
 
+        auto stableResult = lastResult;
+        auto stableNEval  = ci.f.nEval();
+        auto stableSweeps = sweeps;
+
         while(sweeps < maxSweeps) {
             ci.iterate();
             report(++sweeps, lastResult);
 
-            const auto bondDims = bondDimensions();
+            const auto bondDims       = bondDimensions();
+            bool       isSameMean     = isUnchanged(lastResult.mean, previousResult.mean);
+            bool       isSameVariance = isUnchanged(lastResult.variance, previousResult.variance);
+            bool       isSame         = isSameMean && isSameVariance && bondDims == previousBondDims;
+
+            if(!isSame) {
+                stableResult = lastResult;
+                stableNEval  = ci.f.nEval();
+                stableSweeps = sweeps;
+            }
 
             if(ci.isDone()) {
-                bool isSameMean     = isUnchanged(lastResult.mean, previousResult.mean);
-                bool isSameVariance = isUnchanged(lastResult.variance, previousResult.variance);
-                bool isSame         = isSameMean && isSameVariance && bondDims == previousBondDims;
-
                 for(std::size_t i = 0; i < lastResult.indices.size(); ++i) {
-                    isSame &= isUnchanged(lastResult.indices.at(i).estimated, previousResult.indices.at(i).estimated);
+                    isSame &= isUnchanged(lastResult.indices[i].estimated, previousResult.indices[i].estimated);
                 }
 
                 sweepsUnchanged = isSame ? sweepsUnchanged + 1 : 0;
-
                 if(sweepsUnchanged >= minSweepsUnchanged) {
                     stopMsg = fmt::format("no change for {} consecutive sweep(s)", sweepsUnchanged);
                     break;
                 }
+
             } else {
                 sweepsUnchanged = 0;
             }
@@ -342,6 +351,7 @@ namespace sens {
         // Print results
 
         fmt::print("Stopped: {}\n", stopMsg);
+
         if(hasExact) {
             fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");
             for(std::size_t i = 0; i < relTolTargets.size(); ++i) {
@@ -353,7 +363,7 @@ namespace sens {
         fmt::print("\nFinal bond dimensions: ");
         for(int k = 0; k < dim - 1; ++k) fmt::print("{} ", ci.tt.M[k].n_slices);
 
-        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", lastResult.mean, lastResult.variance);
+        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableResult.mean, stableResult.variance);
 
         if(hasExact) {
             fmt::print("\n{:<8} {:>14} {:>14} {:>12}\n", "index", "estimated", "exact", "absError");
@@ -361,8 +371,11 @@ namespace sens {
             fmt::print("\n{:<8} {:>14}\n", "index", "estimated");
         }
 
-        for(int i = 0; i < 2 * dim; ++i) {
-            const auto &index = lastResult.indices.at(i);
+        const std::size_t nPrinted =
+            hasExact && stableResult.indices.size() <= 10 ? stableResult.indices.size() : 2 * dim;
+
+        for(std::size_t i = 0; i < nPrinted; ++i) {
+            const auto &index = stableResult.indices.at(i);
 
             if(hasExact) {
                 fmt::print("{:<8} {:>14.8f} {:>14.8f} {:>12.3e}\n", index.name, index.estimated, index.exact,
@@ -380,7 +393,7 @@ namespace sens {
             double error2    = 0.0;
 
             for(std::size_t i = offset; i < offset + extent; ++i) {
-                const auto &index = lastResult.indices.at(i);
+                const auto &index = stableResult.indices.at(i);
 
                 estimated += index.estimated;
 
@@ -413,7 +426,7 @@ namespace sens {
         const std::size_t nThird =
             hasExact ? exactSobol.third.size() : static_cast<std::size_t>(dim) * (dim - 1) * (dim - 2) / 6;
 
-        const std::size_t nHigher = lastResult.indices.size() - nFirst - nSecond - nThird;
+        const std::size_t nHigher = stableResult.indices.size() - nFirst - nSecond - nThird;
 
         const std::size_t offsetSecond = 2 * dim;
         const std::size_t offsetThird  = offsetSecond + nSecond;
@@ -422,6 +435,15 @@ namespace sens {
         const double sumSecond = printSum("S_ij", offsetSecond, nSecond);
         const double sumThird  = printSum("S_ijk", offsetThird, nThird);
         fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", nHigher, 1 - sumFirst - sumSecond - sumThird);
+
+        if(hasExact) {
+            fmt::print("\n=== Final TCI accuracy ===\n");
+            fmt::print("{:<10} {:>8} {:>12} {:>12} {:>14} {:>14}\n", "method", "nEval", "RMSE", "maxAbs", "mean",
+                       "variance");
+
+            fmt::print("{:<10} {:>8} {:>12.4e} {:>12.4e} {:>14.6e} {:>14.6e}\n", "TCI2", stableNEval, stableResult.rmse,
+                       stableResult.maxAbs, stableResult.mean, stableResult.variance);
+        }
 
         // runSensitivityAnalysis_TTSVD(function, ci, grids, weights, bondDim);
     }

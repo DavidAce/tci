@@ -1,4 +1,5 @@
 #include "cfg/cfg.hpp"
+#include "cli/cli.hpp"
 #include "func/CoupledPolynomial.hpp"
 #include "func/Ishigami.hpp"
 #include "func/Morris2006.hpp"
@@ -75,6 +76,7 @@ void ci2() {
 int main(int argc, char **argv) {
     // ci1();
     // ci2();
+    cli::parse(argc, argv);
     rnd::seed(cfg::seed);
 
     using namespace cfg;

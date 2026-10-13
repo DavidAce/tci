@@ -20,9 +20,14 @@ namespace cli {
         app.add_option("--bond-dim", bondDim, "Maximum MPS bond dimension")->check(CLI::PositiveNumber);
         app.add_option("--max-sweeps", maxSweeps, "Maximum half-sweeps")->check(CLI::PositiveNumber);
         app.add_option("--seed", seed, "PCG random seed");
-        app.add_option("--tols", targets, "Relative RMSE target tolerances")->allow_extra_args(false);
+        app.add_option("--tols", targets, "Relative RMSE target tolerances")
+            ->delimiter(',')
+            ->allow_extra_args(false)
+            ->check(CLI::PositiveNumber);
 
-        app.parse(argc, argv);
+        try {
+            app.parse(argc, argv);
+        } catch(const CLI::ParseError &e) { std::exit(app.exit(e)); }
 
         if(quadratureName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
     }
