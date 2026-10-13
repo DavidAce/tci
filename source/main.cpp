@@ -1,3 +1,4 @@
+#include "cfg/cfg.hpp"
 #include "func/CoupledPolynomial.hpp"
 #include "func/Ishigami.hpp"
 #include "func/Morris2006.hpp"
@@ -9,6 +10,7 @@
 #include <complex>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <stdexcept>
 #include <vector>
 #include <xfac/grid.h>
 #include <xfac/tensor/tensor_ci.h>
@@ -70,27 +72,33 @@ void ci2() {
     fmt::print("Max absolute tensor error: {:.5e}\n", ci.trueError());
 }
 
-int main() {
+int main(int argc, char **argv) {
     // ci1();
     // ci2();
-    rnd::seed(0);
-    const std::vector<double> targets{1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10};
+    rnd::seed(cfg::seed);
 
-    Ishigami            ishigami;
-    Morris2006          morris(8, 5);
-    CoupledPolynomial   cpoly(20);
-    NonlinearPolynomial npoly(16, 0.1);
-    auto                GK15 = [](double lo, double hi) { return quadrature::gaussKronrod15(lo, hi); };
+    using namespace cfg;
+    auto makeQuadrature = [&](double lo, double hi) {
+        if(cfg::quadratureNameHas("gk15")) return quadrature::gaussKronrod15(lo, hi);
+        if(cfg::quadratureNameHas("gl")) return quadrature::gaussLegendre(nnodes, lo, hi);
+        if(cfg::quadratureNameHas("cc")) return quadrature::clenshawCurtis(nnodes, lo, hi);
+        throw std::invalid_argument(fmt::format("Unhandled quadrature name: {}", cfg::quadratureName));
+    };
 
-    sens::runSensitivityAnalysis(ishigami, targets, 5, 30, GK15);
-    sens::runSensitivityAnalysis(morris, targets, 5, 30, GK15);
-    sens::runSensitivityAnalysis(cpoly, targets, 5, 30, GK15);
-    // sens::runSensitivityAnalysis(npoly, {}, 2, 10);
-    // sens::runSensitivityAnalysis(npoly, {}, 4, 10);
-
-    // sens::runSensitivityAnalysis(npoly, {}, 8, 20);
-    // sens::runSensitivityAnalysis(npoly, {}, 16, 20);
-    // sens::runSensitivityAnalysis(npoly, {}, 32, 20);
-
-    // sens::runSensitivityAnalysis(npoly, {}, 64, 10);
+    if(cfg::functionNameHas("ishigami")) {
+        Ishigami function;
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+    }
+    if(cfg::functionNameHas("morris")) {
+        Morris2006 function(8, 5);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+    }
+    if(cfg::functionNameHas("cpoly")) {
+        CoupledPolynomial function(20);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+    }
+    if(cfg::functionNameHas("npoly")) {
+        NonlinearPolynomial function(16, 0.1);
+        sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature);
+    }
 }
