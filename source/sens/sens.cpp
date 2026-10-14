@@ -323,18 +323,19 @@ namespace sens {
             bool       isSameVariance = isUnchanged(lastResult.variance, previousResult.variance);
             bool       isSame         = isSameMean && isSameVariance && bondDims == previousBondDims;
 
-            if(!isSame) {
-                stableResult = lastResult;
-                stableNEval  = ci.f.nEval();
-                stableSweeps = sweeps;
-            }
-
             if(ci.isDone()) {
                 for(std::size_t i = 0; i < lastResult.indices.size(); ++i) {
                     isSame &= isUnchanged(lastResult.indices[i].estimated, previousResult.indices[i].estimated);
                 }
 
                 sweepsUnchanged = isSame ? sweepsUnchanged + 1 : 0;
+
+                if(!isSame) {
+                    stableResult = lastResult;
+                    stableNEval  = ci.f.nEval();
+                    stableSweeps = sweeps;
+                }
+
                 if(sweepsUnchanged >= minSweepsUnchanged) {
                     stopMsg = fmt::format("no change for {} consecutive sweep(s)", sweepsUnchanged);
                     break;
