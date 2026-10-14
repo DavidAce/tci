@@ -16,6 +16,8 @@ import argparse
 import math
 import subprocess
 import time
+import sys
+
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +27,7 @@ from sklearn.gaussian_process.kernels import ConstantKernel, RBF
 from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 from numba import njit
+
 A, B = 7.0, 0.1
 PROBLEM = {
     "num_vars": 3,
@@ -124,17 +127,11 @@ def run_gp(args):
     print("GP predictions for SALib integration do not increase nEval.")
 
 
-def run_tci(args):
+def run_tci(args, tci_args):
     if args.tci is None:
         return
     cmd = [
-        str(args.tci.expanduser().resolve()),
-        "--function", "ishigami",
-        "--quadrature", args.quadrature,
-        "--nnodes", str(args.nnodes),
-        "--bond-dim", str(args.bond_dim),
-        "--max-sweeps", str(args.max_sweeps),
-        "--seed", str(args.tci_seed),
+        str(args.tci.expanduser().resolve()), *tci_args,
     ]
     print(f"=== C++ TCI === [{' '.join(cmd)}]", flush=True)
     subprocess.run(cmd, check=True)
@@ -142,25 +139,33 @@ def run_tci(args):
 
 
 def main():
+    argv = sys.argv[1:]
+    if "--" in argv:
+        pos = argv.index("--")
+        python_args = argv[:pos]
+        tci_args = argv[pos+1:]
+    else:
+        python_args = argv
+        tci_args = []
+    print(f"{argv=}")
+    print(f"{python_args=}")
+    print(f"{tci_args=}")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tci", type=Path, help="Optional C++ TCI executable")
-    parser.add_argument("--quadrature", choices=("gk15", "gl", "cc"), default="gk15")
-    parser.add_argument("--nnodes", type=int, default=15)
-    parser.add_argument("--bond-dim", type=int, default=8)
-    parser.add_argument("--max-sweeps", type=int, default=20)
-    parser.add_argument("--tci-seed", type=int, default=42)
     parser.add_argument("--gp-seed", type=int, default=12572601)
     parser.add_argument("--gp-sizes", nargs="+", type=int, default=[128, 256, 512, 1024])
     parser.add_argument("--gp-sobol-base", type=int, default=2**14)
     parser.add_argument("--gp-restarts", type=int, default=10)
     parser.add_argument("--alpha", type=float, default=1e-10,
                         help="Fixed GP numerical regularization; reference saved setup has 0.01**2")
-    args = parser.parse_args()
+    args = parser.parse_args(python_args)
+    if tci_args and args.tci is None:
+        parser.error(f"TCI arguments passed without accompanying --tci=... : {tci_args}")
+
     if args.alpha < 0 or args.gp_restarts < 0:
         parser.error("alpha and gp-restarts must be nonnegative")
-    if args.tci and args.quadrature == "gk15" and args.nnodes != 15:
-        parser.error("GK15 requires exactly 15 nodes")
-    run_tci(args)
+
+    run_tci(args, tci_args)
     run_gp(args)
 
 
