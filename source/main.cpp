@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("cpoly")) {
-        CoupledPolynomial function(20);
+        CoupledPolynomial function(8);
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("npoly")) {

@@ -427,15 +427,19 @@ namespace sens {
         const std::size_t nThird =
             hasExact ? exactSobol.third.size() : static_cast<std::size_t>(dim) * (dim - 1) * (dim - 2) / 6;
 
-        const std::size_t nHigher = stableResult.indices.size() - nFirst - nSecond - nThird;
+        const std::size_t nThirdAndUp = stableResult.indices.size() - nFirst - nSecond;
+        const std::size_t nFourAndUp  = stableResult.indices.size() - nFirst - nSecond - nThird;
 
         const std::size_t offsetSecond = 2 * dim;
         const std::size_t offsetThird  = offsetSecond + nSecond;
 
-        const double sumFirst  = printSum("S_i", 0, dim);
-        const double sumSecond = printSum("S_ij", offsetSecond, nSecond);
-        const double sumThird  = printSum("S_ijk", offsetThird, nThird);
-        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", nHigher, 1 - sumFirst - sumSecond - sumThird);
+        const double sumFirst       = printSum("S_i", 0, dim);
+        const double sumSecond      = printSum("S_ij", offsetSecond, nSecond);
+        const double sumThird       = printSum("S_ijk", offsetThird, nThird);
+        const double sumThirdAndUp  = 1.0 - sumFirst - sumSecond;
+        const double sumFourthAndUp = 1.0 - sumFirst - sumSecond - sumThird;
+        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", nThirdAndUp, sumThirdAndUp);
+        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijkl...", nFourAndUp, sumFourthAndUp);
 
         if(hasExact) {
             fmt::print("\n=== Final TCI accuracy ===\n");

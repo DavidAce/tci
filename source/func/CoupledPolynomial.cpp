@@ -51,7 +51,7 @@ double CoupledPolynomial::evaluate(const std::vector<double>& x) const {
     std::vector<double> z(dim_);
     for(int i = 0; i < dim_; ++i) z[i] = std::sqrt(12.0) * (x[i] - 0.5);
 
-    double result = 1.0;
+    double result = 0.0;
 
     for(int i = 0; i < dim_; ++i) {
         result += a_[i] * z[i];

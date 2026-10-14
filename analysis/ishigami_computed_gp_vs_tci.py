@@ -131,7 +131,7 @@ def run_tci(args, tci_args):
     if args.tci is None:
         return
     cmd = [
-        str(args.tci.expanduser().resolve()), *tci_args,
+        str(args.tci.expanduser().resolve()), '--function', 'ishigami', *tci_args,
     ]
     print(f"=== C++ TCI === [{' '.join(cmd)}]", flush=True)
     subprocess.run(cmd, check=True)
@@ -159,6 +159,9 @@ def main():
     args = parser.parse_args(python_args)
     if tci_args and args.tci is None:
         parser.error(f"TCI arguments passed without accompanying --tci=... : {tci_args}")
+    if any(s == '--function' or s.startswith('--function=') for s in tci_args):
+        parser.error('C++ --function is automatically set to ishigami')
+
 
     if args.alpha < 0 or args.gp_restarts < 0:
         parser.error("alpha and gp-restarts must be nonnegative")
