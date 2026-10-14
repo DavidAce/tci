@@ -13,6 +13,7 @@ import shlex
 import subprocess
 from urllib.request import urlopen
 import os
+import sys
 
 dirname = os.path.dirname(__file__)
 RESULTS_FILE = os.path.join(dirname, 'output/sensitivity_analyses/noiseless_ishigami.json')
@@ -68,23 +69,17 @@ def print_table(title, results, sizes, reference, details=False):
             print(f"{label:<10}{value:>14.8f}{truth:>14.8f}{abs(value-truth):>14.3e}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json",
-                         default=RESULTS_FILE, metavar="PATH_OR_URL",
-                        help="Published results JSON, local path or raw GitHub URL")
-    parser.add_argument("--tci", metavar="EXE", help="Run this C++ TCI executable first")
-    parser.add_argument("--show-indices", action="store_true",
-                        help="Print final individual Sobol indices as well")
-    args, tci_options = parser.parse_known_args()
-    if tci_options and not args.tci:
-        parser.error(f"Unrecognized options without --tci: {tci_options}")
+def run_tci(args, tci_args):
+    if args.tci is None:
+        return
+    cmd = [
+        str(args.tci.expanduser().resolve()), *tci_args,
+    ]
+    print(f"=== C++ TCI === [{' '.join(cmd)}]", flush=True)
+    subprocess.run(cmd, check=True)
+    print(flush=True)
 
-    if args.tci:
-        cmd = [str(Path(args.tci).resolve()), *tci_options]
-        print(f"=== C++ TCI === {shlex.join(cmd)}", flush=True)
-        subprocess.run(cmd, check=True)
-
+def print_gp(args):
     data = read_json(args.json)
     sizes = data["n_samples"]
     gp = data["gp_results"]
@@ -100,6 +95,34 @@ def main():
     print_table("SALib direct", direct, sizes, reference, args.show_indices)
     print_table("GP surrogate", gp, sizes, reference, args.show_indices)
 
+
+
+def main():
+    argv = sys.argv[1:]
+    if "--" in argv:
+            pos = argv.index("--")
+            python_args = argv[:pos]
+            tci_args = argv[pos+1:]
+    else:
+        python_args = argv
+        tci_args = []
+    
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json",
+                         default=RESULTS_FILE, metavar="PATH_OR_URL",
+                        help="Published results JSON, local path or raw GitHub URL")
+    parser.add_argument("--tci", type=Path, help="Optional C++ TCI executable")
+    parser.add_argument("--show-indices", action="store_true",
+                        help="Print final individual Sobol indices as well")
+    
+    args = parser.parse_args(python_args)
+    if tci_args and args.tci is None:
+        parser.error(f"TCI arguments passed without accompanying --tci=... : {tci_args}")
+
+    run_tci(args, tci_args)
+    print_gp(args)
+
+  
 
 if __name__ == "__main__":
     main()

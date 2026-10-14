@@ -147,9 +147,7 @@ def main():
     else:
         python_args = argv
         tci_args = []
-    print(f"{argv=}")
-    print(f"{python_args=}")
-    print(f"{tci_args=}")
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tci", type=Path, help="Optional C++ TCI executable")
     parser.add_argument("--gp-seed", type=int, default=12572601)
