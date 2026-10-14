@@ -13,6 +13,7 @@ import math
 import subprocess
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,8 @@ from numba import njit
 from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, RBF
+from sklearn.exceptions import ConvergenceWarning
+
 from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 
@@ -154,8 +157,8 @@ def run_gp(args):
     sizes = args.gp_sizes
     if any(n < 2 or n & (n-1) for n in sizes):
         raise ValueError('GP training sizes must be powers of two >= 2')
-    if args.gp_sobol_base < 2 or args.gp_sobol_base & (args.gp_sobol_base-1):
-        raise ValueError('--gp-sobol-base must be a power of two >= 2')
+    if args.gp_sobol_samples < 2 or args.gp_sobol_samples & (args.gp_sobol_samples-1):
+        raise ValueError('--gp-sobol-samples must be a power of two >= 2')
 
     a, b, c = coefficients(dim)
     exact = exact_sobol(a, b, c)
@@ -175,14 +178,14 @@ def run_gp(args):
     print(f'Training: scrambled Sobol | seed={args.gp_seed} | noise=0')
     print('Kernel: ConstantKernel(1, [1e-5,1e5]) * RBF(1, [1e-5,1e5]) [isotropic]')
     print(f'GP: normalize_y=True | alpha={args.alpha:g} | restarts={args.gp_restarts}')
-    print(f'SALib: base={args.gp_sobol_base} | '
-          f'predictions={(2*dim+2)*args.gp_sobol_base} | second-order=True')
+    print(f'SALib: base={args.gp_sobol_samples} | '
+          f'predictions={(2*dim+2)*args.gp_sobol_samples} | second-order=True')
     print('Exact: mean=1, variance=1, sum(S1)=0.2, sum(S2)=0.3, S_>=3=0.5')
     print(f"{'method':<10} {'nEval':>7} {'RMSE':>12} {'maxAbs':>12} "
           f"{'S_ij...':>12} {'mean':>12} {'variance':>12} {'fit(s)':>9} {'sobol(s)':>9}")
 
     for n in sizes:
-        kernel = ConstantKernel(1.0, (1e-5, 1e5)) * RBF(
+        kernel = ConstantKernel(1.0, (1e-5, 1e6)) * RBF(
             length_scale=1.0, length_scale_bounds=(1e-5, 1e5)
         )
         gp = GaussianProcessRegressor(
@@ -190,11 +193,14 @@ def run_gp(args):
             n_restarts_optimizer=args.gp_restarts, random_state=args.gp_seed,
         )
         t0 = time.perf_counter()
-        gp.fit(u[:n], y[:n])
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r"lbfgs failed to converge.*",
+                                     category=ConvergenceWarning)
+            gp.fit(u[:n], y[:n])
         fit_time = time.perf_counter() - t0
         t0 = time.perf_counter()
         mu, var, indices = evaluate_gp_sobol(
-            gp, problem, args.gp_sobol_base, args.gp_seed
+            gp, problem, args.gp_sobol_samples, args.gp_seed
         )
         sobol_time = time.perf_counter() - t0
         delta = indices - exact
@@ -229,16 +235,21 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tci', type=Path, help='Optional C++ TCI executable')
-    parser.add_argument('--dimension', type=int, default=8)
-    parser.add_argument('--gp-seed', type=int, default=12572601)
-    parser.add_argument('--gp-sizes', nargs='+', type=int, default=[128, 256, 512, 1024])
-    parser.add_argument('--gp-sobol-base', type=int, default=2**14)
-    parser.add_argument('--gp-restarts', type=int, default=10)
-    parser.add_argument('--alpha', type=float, default=1e-8)
+    parser.add_argument('--dimension', type=int, default=8, help='Total number of input variables.')
+    parser.add_argument('--active', type=int, default=5, help='Number of input variables that influence the function.')
+    parser.add_argument('--gp-seed', type=int, default=12572601, help='Random seed for generating the GP training points.')
+    parser.add_argument('--gp-sizes', nargs='+', type=int, default=[128, 256, 512, 1024], help='Number of function evaluations used to training the GP model (powers of two).')
+    parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')
+    parser.add_argument('--gp-restarts', type=int, default=10, help='Number of additional attempts to optimize the GP kernel parameters.')
+    parser.add_argument('--alpha', type=float, default=1e-8, help='Small value added to the GP covariance diagonal for numerical stability.')
+    
+
     args = parser.parse_args(python_args)
 
     if args.dimension < 3:
         parser.error('--dimension must be >= 3')
+    if not 2 <= args.active <= args.dimension:
+        parser.error(f'--active must be between 2 and ({args.dimension=})')
     if args.alpha < 0 or args.gp_restarts < 0:
         parser.error('alpha and gp-restarts must be nonnegative')
     if tci_args and args.tci is None:
