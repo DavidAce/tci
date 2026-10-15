@@ -72,7 +72,10 @@ namespace sens {
         const double m2       = fs.m2;
         const double variance = fs.variance;
 
-        double maxDiff = nan;
+        const bool hasExact = sobolRef.first.size() == static_cast<std::size_t>(dim) &&
+                              sobolRef.total.size() == static_cast<std::size_t>(dim);
+
+        double maxDiff = hasExact ? 0.0 : nan;
         double rmse    = nan;
 
         if(!(variance > 0.0)) throw std::runtime_error("Non-positive output variance");
@@ -93,8 +96,6 @@ namespace sens {
 
             total[i] = (m2 - conditional_mean_square(tt, weights, mask)) / variance;
         }
-        const bool hasExact = sobolRef.first.size() == static_cast<std::size_t>(dim) &&
-                              sobolRef.total.size() == static_cast<std::size_t>(dim);
 
         auto addIndex = [&](std::vector<SobolIndex> &indices, std::string name, double estimated, double exact) {
             const double error = hasExact ? std::abs(estimated - exact) : nan;
@@ -245,6 +246,7 @@ namespace sens {
                                                     .nRookIter         = p.nRookIter,
                                                     .useCachedFunction = p.useCachedFunction};
         static h5pp::hid::h5t H5_PARAM_TYPE;
+        std::string           paramTablePath = "xfac/param";
         if(!H5_PARAM_TYPE.valid()) {
             // Register the compound type
             H5_PARAM_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(h5param));
@@ -253,10 +255,8 @@ namespace sens {
             H5Tinsert(H5_PARAM_TYPE, "fullPiv", HOFFSET(h5XfacParam, fullPiv), H5T_NATIVE_HBOOL);
             H5Tinsert(H5_PARAM_TYPE, "nRookIter", HOFFSET(h5XfacParam, nRookIter), H5T_NATIVE_INT);
             H5Tinsert(H5_PARAM_TYPE, "useCachedFunction", HOFFSET(h5XfacParam, useCachedFunction), H5T_NATIVE_HBOOL);
-            file.createTable(H5_PARAM_TYPE, "xfac/param", "xfac parameters");
         }
-
-        // Create an empty table
+        if(!file.linkExists(paramTablePath)) { file.createTable(H5_PARAM_TYPE, paramTablePath, "xfac parameters"); }
         file.appendTableRecords(h5param, "xfac/param");
     }
 
@@ -388,19 +388,19 @@ namespace sens {
                        "maxDeltaS");
         }
 
-        auto report = [&](int sweeps, SobolResult &result) {
-            auto previous   = std::move(result);
-            auto statistics = calculateStatstics(ci.tt, weights);
-            result          = calculateSobol(ci.tt, weights, statistics, exactSobol);
+        auto report = [&](Status &status) {
+            auto previous      = std::move(status.sobolResult);
+            status.statistics  = calculateStatstics(ci.tt, weights);
+            status.sobolResult = calculateSobol(ci.tt, weights, status.statistics, exactSobol);
 
             const auto nEval = ci.f.nEval();
 
             if(hasExact) {
-                fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", sweeps, nEval, result.rmse,
-                           result.maxDiff);
+                fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", status.sweeps, nEval,
+                           status.sobolResult.rmse, status.sobolResult.maxDiff);
 
                 for(std::size_t i = 0; i < relTolTargets.size(); ++i) {
-                    if(!reached[i] && result.rmse <= relTolTargets[i]) {
+                    if(!reached[i] && status.sobolResult.rmse <= relTolTargets[i]) {
                         reached[i]   = true;
                         firstEval[i] = nEval;
                     }
@@ -408,19 +408,19 @@ namespace sens {
             } else {
                 std::string delta = "-";
 
-                if(previous.sobolIndices.size() == result.sobolIndices.size()) {
+                if(previous.sobolIndices.size() == status.sobolResult.sobolIndices.size()) {
                     double maxDeltaS = 0.0;
 
-                    for(std::size_t i = 0; i < result.sobolIndices.size(); ++i) {
-                        maxDeltaS = std::max(
-                            maxDeltaS, std::abs(result.sobolIndices[i].estimated - previous.sobolIndices[i].estimated));
+                    for(std::size_t i = 0; i < status.sobolResult.sobolIndices.size(); ++i) {
+                        maxDeltaS = std::max(maxDeltaS, std::abs(status.sobolResult.sobolIndices[i].estimated -
+                                                                 previous.sobolIndices[i].estimated));
                     }
 
                     delta = fmt::format("{:.3e}", maxDeltaS);
                 }
 
-                fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", sweeps, nEval, statistics.mean,
-                           statistics.variance, delta);
+                fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", status.sweeps, nEval,
+                           status.statistics.mean, status.statistics.variance, delta);
             }
         };
 
@@ -437,7 +437,7 @@ namespace sens {
         auto statusLog            = std::vector<Status>(1);
         statusLog.back().nEval    = ci.f.nEval();
         statusLog.back().bondDims = bondDimensions();
-        report(statusLog.back().sweeps, statusLog.back().sobolResult); // Report initial TT, before explicit sweeps.
+        report(statusLog.back()); // Report initial TT, before explicit sweeps.
 
         while(true) {
             assert(!statusLog.empty());
@@ -446,7 +446,8 @@ namespace sens {
             auto       &sLast = statusLog.back();
 
             ci.iterate();
-            report(++sLast.sweeps, sLast.sobolResult);
+            sLast.sweeps++;
+            report(sLast);
 
             sLast.bondDims = bondDimensions();
             sLast.nEval    = ci.f.nEval();
@@ -476,6 +477,7 @@ namespace sens {
             }
             if(sLast.sweeps >= maxSweeps) {
                 sLast.stopMsg = fmt::format("maximum number of sweeps reached ({})", maxSweeps);
+                break;
             }
         }
         writeStatusLog(h5file, statusLog);
@@ -576,8 +578,8 @@ namespace sens {
         const double sumThird       = printSum("S_ijk", offsetThird, nThird);
         const double sumThirdAndUp  = 1.0 - sumFirst - sumSecond;
         const double sumFourthAndUp = 1.0 - sumFirst - sumSecond - sumThird;
-        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", nThirdAndUp, sumThirdAndUp);
-        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijkl...", nFourAndUp, sumFourthAndUp);
+        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", "-", sumThirdAndUp);
+        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijkl...", "-", sumFourthAndUp);
 
         if(hasExact) {
             fmt::print("\n=== Final TCI accuracy ===\n");
