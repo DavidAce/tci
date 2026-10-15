@@ -231,33 +231,75 @@ namespace sens {
     }
 
     struct h5XfacParam {
-        int    bondDim   = 30;    ///< the max bond dimension of the tensor train
-        double reltol    = 1e-12; ///< CI will stop when pivotError < reltol*max(pivotError)
-        bool   fullPiv   = false; ///< whether to search in the full Pi matrix to find a new pivot
-        int    nRookIter = 3;     ///< number of rook pivoting iterations, used when fullPiv=false
-        bool   useCachedFunction =
-            true; ///< whether the internal caching should be used to avoid function call to the same point.
+        using vlen_type = h5pp::varr_t<int>;
+
+        int               bondDim; ///< the max bond dimension of the tensor train
+        double            reltol;  ///< CI will stop when pivotError < reltol*max(pivotError)
+        h5pp::varr_t<int> pivot1;
+        bool              fullPiv;   ///< whether to search in the full Pi matrix to find a new pivot
+        int               nRookIter; ///< number of rook pivoting iterations, used when fullPiv=false
+        bool useCachedFunction;      ///< whether the internal caching should be used to avoid function call to the same
+        ///< point.
     };
 
-    void writeParam(h5pp::File &file, xfac::TensorCI2Param &p) {
-        auto                  h5param = h5XfacParam{.bondDim           = p.bondDim,
-                                                    .reltol            = p.reltol,
-                                                    .fullPiv           = p.fullPiv,
-                                                    .nRookIter         = p.nRookIter,
-                                                    .useCachedFunction = p.useCachedFunction};
-        static h5pp::hid::h5t H5_PARAM_TYPE;
-        std::string           paramTablePath = "xfac/param";
-        if(!H5_PARAM_TYPE.valid()) {
-            // Register the compound type
-            H5_PARAM_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(h5param));
-            H5Tinsert(H5_PARAM_TYPE, "bondDim", HOFFSET(h5XfacParam, bondDim), H5T_NATIVE_INT);
-            H5Tinsert(H5_PARAM_TYPE, "reltol", HOFFSET(h5XfacParam, reltol), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_PARAM_TYPE, "fullPiv", HOFFSET(h5XfacParam, fullPiv), H5T_NATIVE_HBOOL);
-            H5Tinsert(H5_PARAM_TYPE, "nRookIter", HOFFSET(h5XfacParam, nRookIter), H5T_NATIVE_INT);
-            H5Tinsert(H5_PARAM_TYPE, "useCachedFunction", HOFFSET(h5XfacParam, useCachedFunction), H5T_NATIVE_HBOOL);
+    struct h5TCIParam {
+        using vlen_type = h5pp::varr_t<double>;
+        int                  dim;
+        h5pp::vstr_t         name;
+        h5pp::varr_t<double> reltols;
+    };
+
+    void writeParam(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
+                    const std::vector<double> &relTolTargets, const Quadrature &makeQuadrature) {
+        {
+            auto h5Xfac = h5XfacParam{.bondDim           = p.bondDim,
+                                      .reltol            = p.reltol,
+                                      .pivot1            = p.pivot1,
+                                      .fullPiv           = p.fullPiv,
+                                      .nRookIter         = p.nRookIter,
+                                      .useCachedFunction = p.useCachedFunction
+
+            };
+
+            static h5pp::hid::h5t H5_XFAC_PARAM_TYPE;
+            std::string           xfacParamTablePath = "param/xfac";
+            if(!H5_XFAC_PARAM_TYPE.valid()) {
+                // Register the compound type
+                H5_XFAC_PARAM_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(h5Xfac));
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "bondDim", HOFFSET(h5XfacParam, bondDim), H5T_NATIVE_INT);
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "reltol", HOFFSET(h5XfacParam, reltol), H5T_NATIVE_DOUBLE);
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "pivot1", HOFFSET(h5XfacParam, pivot1), h5pp::varr_t<int>::get_h5type());
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "fullPiv", HOFFSET(h5XfacParam, fullPiv), H5T_NATIVE_HBOOL);
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "nRookIter", HOFFSET(h5XfacParam, nRookIter), H5T_NATIVE_INT);
+                H5Tinsert(H5_XFAC_PARAM_TYPE, "useCachedFunction", HOFFSET(h5XfacParam, useCachedFunction),
+                          H5T_NATIVE_HBOOL);
+            }
+            if(!file.linkExists(xfacParamTablePath)) {
+                file.createTable(H5_XFAC_PARAM_TYPE, xfacParamTablePath, "xfac parameters");
+            }
+            file.appendTableRecords(h5Xfac, xfacParamTablePath);
         }
-        if(!file.linkExists(paramTablePath)) { file.createTable(H5_PARAM_TYPE, paramTablePath, "xfac parameters"); }
-        file.appendTableRecords(h5param, "xfac/param");
+        {
+            auto h5TCI = h5TCIParam{
+                .dim     = f.dimension(),
+                .name    = f.name(),
+                .reltols = relTolTargets,
+            };
+            static h5pp::hid::h5t H5_TCI_PARAM_TYPE;
+            std::string           tciParamTablePath = "param/tci";
+            if(!H5_TCI_PARAM_TYPE.valid()) {
+                // Register the compound type
+                H5_TCI_PARAM_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(h5TCIParam));
+                H5Tinsert(H5_TCI_PARAM_TYPE, "dim", HOFFSET(h5TCIParam, dim), H5T_NATIVE_INT);
+                H5Tinsert(H5_TCI_PARAM_TYPE, "name", HOFFSET(h5TCIParam, name), h5pp::vstr_t::get_h5type());
+                H5Tinsert(H5_TCI_PARAM_TYPE, "reltols", HOFFSET(h5TCIParam, reltols),
+                          h5pp::varr_t<double>::get_h5type());
+            }
+            if(!file.linkExists(tciParamTablePath)) {
+                file.createTable(H5_TCI_PARAM_TYPE, tciParamTablePath, "TCI parameters");
+            }
+            file.appendTableRecords(h5TCI, tciParamTablePath);
+        }
     }
 
     struct Status {
@@ -348,7 +390,7 @@ namespace sens {
         const int  dim        = function.dimension();
         const auto exactSobol = function.exactSobolIndices();
         const bool hasExact   = exactSobol.first.size() == static_cast<std::size_t>(dim) &&
-                                exactSobol.total.size() == static_cast<std::size_t>(dim);
+                              exactSobol.total.size() == static_cast<std::size_t>(dim);
 
         auto h5file = h5pp::File(fmt::format("{}.h5", function.name()), h5pp::FileAccess::REPLACE);
 
@@ -369,7 +411,7 @@ namespace sens {
         param.fullPiv = false;
         param.pivot1  = randomInitialPivot(function, grids);
 
-        writeParam(h5file, param);
+        writeParam(h5file, param, function, relTolTargets, makeQuadrature);
 
         auto f = [&function](const std::vector<double> &x) -> double { return function.evaluate(x); };
         xfac::CTensorCI2<double, double> ci(f, grids, param);
@@ -439,7 +481,7 @@ namespace sens {
         statusLog.back().bondDims = bondDimensions();
         report(statusLog.back()); // Report initial TT, before explicit sweeps.
 
-        while(true) {
+        while(statusLog.back().sweeps < maxSweeps) {
             assert(!statusLog.empty());
             statusLog.push_back(statusLog.back()); // Should be safe
             const auto &sPrev = statusLog.rbegin()[1];
@@ -502,7 +544,7 @@ namespace sens {
         }
 
         fmt::print("\nFinal bond dimensions: ");
-        for(int k = 0; k < dim - 1; ++k) fmt::print("{} ", ci.tt.M[k].n_slices);
+        for(int k = 0; k < dim - 1; ++k) fmt::print("{} ", sStable.bondDims);
 
         fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableStatistics.mean, stableStatistics.variance);
 
@@ -561,14 +603,11 @@ namespace sens {
             fmt::print("\n{:<12} {:>6} {:>14}\n", "order", "count", "sum est.");
         }
 
-        const std::size_t nFirst  = exactSobol.first.size();
+        const std::size_t nFirst  = dim;
         const std::size_t nSecond = hasExact ? exactSobol.second.size() : static_cast<std::size_t>(dim) * (dim - 1) / 2;
 
         const std::size_t nThird =
             hasExact ? exactSobol.third.size() : static_cast<std::size_t>(dim) * (dim - 1) * (dim - 2) / 6;
-
-        const std::size_t nThirdAndUp = stableSobol.sobolIndices.size() - nFirst - nSecond;
-        const std::size_t nFourAndUp  = stableSobol.sobolIndices.size() - nFirst - nSecond - nThird;
 
         const std::size_t offsetSecond = 2 * dim;
         const std::size_t offsetThird  = offsetSecond + nSecond;
