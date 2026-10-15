@@ -7,3 +7,4 @@ libs/
 toolchains/
 tmp.md
 __pycache__/
+*.h5

@@ -1,5 +1,5 @@
 #pragma once
-#include <h5pp/h5pp.h>
+#include <h5pp/details/h5ppFstr.h>
 #include <string>
 #include <vector>
 namespace sens::util {
@@ -20,18 +20,22 @@ namespace sens::util {
         std::vector<TripleReference> third;
     };
 
-    struct IndexResult {
-        h5pp::vstr_t name;
-        double       estimated;
-        double       exact;
-        double       error;
+    struct SobolIndex {
+        h5pp::fstr_t<32> name;
+        double           estimated;
+        double           exact;
+        double           error;
     };
-
-    struct SensitivityResult {
-        double                    mean     = 0.0;
-        double                    variance = 0.0;
-        double                    rmse     = 0.0;
-        double                    maxAbs   = 0.0;
-        h5pp::varr_t<IndexResult> indices;
+    struct Statistics {
+        int    dim      = 0;
+        double mean     = 0.0;
+        double mean2    = 0.0;
+        double m2       = 0.0;
+        double variance = 0.0;
+    };
+    struct SobolResult {
+        double                  rmse    = 0.0;
+        double                  maxDiff = 0.0;
+        std::vector<SobolIndex> sobolIndices;
     };
 }

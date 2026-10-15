@@ -32,8 +32,8 @@ namespace sens {
         std::string                   functionName;
         int                           dimension = 0;
         std::vector<SweepRecord>      history;
-        util::SensitivityResult       firstStableSobol;
-        util::SensitivityResult       finalSobol;
+        util::SobolResult       firstStableSobol;
+        util::SobolResult       finalSobol;
         std::uint64_t                 firstStableNEval      = 0;
         std::uint64_t                 finalNEval            = 0;
         int                           firstStableHalfSweeps = 0;

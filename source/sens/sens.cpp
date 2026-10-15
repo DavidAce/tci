@@ -18,50 +18,64 @@
 
 namespace sens {
     using namespace util;
+
+    // Integrate selected variables before squaring.
+    // The remaining variables are integrated after squaring.
     template<typename TensorTrain>
-    SensitivityResult calculateSobol(const TensorTrain &tt, const std::vector<std::vector<double>> &weights,
-                                     const SobolReference &sobolRef) {
+    double conditional_mean_square(const TensorTrain &tt, const std::vector<std::vector<double>> &weights,
+                                   const std::vector<bool> &integrateOut) {
         const int dim = static_cast<int>(weights.size());
 
-        // Integrate selected variables before squaring.
-        // The remaining variables are integrated after squaring.
-        auto conditional_mean_square = [&](const std::vector<bool> &integrateOut) -> double {
-            arma::Mat<double> G(1, 1, arma::fill::ones);
+        arma::Mat<double> G(1, 1, arma::fill::ones);
+        for(int k = 0; k < dim; ++k) {
+            const auto &M = tt.M[k];
+            if(integrateOut[k]) {
+                arma::Mat<double> B(M.n_rows, M.n_slices, arma::fill::zeros);
+                for(arma::uword s = 0; s < M.n_cols; ++s) B += weights[k][s] * arma::Mat<double>(M.col(s));
+                G = B.t() * G * B;
+            } else {
+                arma::Mat<double> next(M.n_slices, M.n_slices, arma::fill::zeros);
 
-            for(int k = 0; k < dim; ++k) {
-                const auto &M = tt.M[k];
-
-                if(integrateOut[k]) {
-                    arma::Mat<double> B(M.n_rows, M.n_slices, arma::fill::zeros);
-
-                    for(arma::uword s = 0; s < M.n_cols; ++s) B += weights[k][s] * arma::Mat<double>(M.col(s));
-
-                    G = B.t() * G * B;
-                } else {
-                    arma::Mat<double> next(M.n_slices, M.n_slices, arma::fill::zeros);
-
-                    for(arma::uword s = 0; s < M.n_cols; ++s) {
-                        arma::Mat<double> A(M.col(s));
-                        next += weights[k][s] * (A.t() * G * A);
-                    }
-
-                    G = std::move(next);
+                for(arma::uword s = 0; s < M.n_cols; ++s) {
+                    arma::Mat<double> A(M.col(s));
+                    next += weights[k][s] * (A.t() * G * A);
                 }
+                G = std::move(next);
             }
+        }
+        return G(0, 0);
+    };
 
-            return G(0, 0);
-        };
+    template<typename TensorTrain>
+    Statistics calculateStatstics(const TensorTrain &tt, const std::vector<std::vector<double>> &weights) {
+        Statistics fs;
+        fs.dim      = static_cast<int>(weights.size());
+        fs.mean     = tt.sum(weights);
+        fs.mean2    = fs.mean * fs.mean;
+        fs.m2       = conditional_mean_square(tt, weights, std::vector<bool>(fs.dim, false));
+        fs.variance = fs.m2 - fs.mean2;
+        return fs;
+    }
 
-        SensitivityResult result;
+    template<typename TensorTrain>
+    SobolResult calculateSobol(const TensorTrain &tt, const std::vector<std::vector<double>> &weights,
+                               const Statistics &fs, const SobolReference &sobolRef) {
+        std::vector<SobolIndex> indices;
+        indices.reserve(sobolRef.first.size() + sobolRef.second.size() + sobolRef.third.size());
 
-        result.mean = tt.sum(weights);
+        constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-        const double mean2 = result.mean * result.mean;
-        const double m2    = conditional_mean_square(std::vector<bool>(dim, false));
+        assert(fs.dim == static_cast<int>(weights.size()));
+        const int    dim      = fs.dim;
+        const double mean     = fs.mean;
+        const double mean2    = fs.mean2;
+        const double m2       = fs.m2;
+        const double variance = fs.variance;
 
-        result.variance = m2 - mean2;
+        double maxDiff = nan;
+        double rmse    = nan;
 
-        if(!(result.variance > 0.0)) throw std::runtime_error("Non-positive output variance");
+        if(!(variance > 0.0)) throw std::runtime_error("Non-positive output variance");
 
         std::vector<double> first(dim), total(dim), V1(dim);
 
@@ -70,32 +84,29 @@ namespace sens {
             std::vector<bool> mask(dim, true);
             mask[i] = false;
 
-            V1[i]    = conditional_mean_square(mask) - mean2;
-            first[i] = V1[i] / result.variance;
+            V1[i]    = conditional_mean_square(tt, weights, mask) - mean2;
+            first[i] = V1[i] / variance;
 
             // Total-order: integrate out only variable i.
             std::fill(mask.begin(), mask.end(), false);
             mask[i] = true;
 
-            total[i] = (m2 - conditional_mean_square(mask)) / result.variance;
+            total[i] = (m2 - conditional_mean_square(tt, weights, mask)) / variance;
         }
         const bool hasExact = sobolRef.first.size() == static_cast<std::size_t>(dim) &&
                               sobolRef.total.size() == static_cast<std::size_t>(dim);
 
-        constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-        auto addIndex = [&](std::vector<IndexResult> &indices, std::string name, double estimated, double exact) {
+        auto addIndex = [&](std::vector<SobolIndex> &indices, std::string name, double estimated, double exact) {
             const double error = hasExact ? std::abs(estimated - exact) : nan;
-            indices.push_back({h5pp::vstr_t(name), estimated, exact, error});
-            if(hasExact) result.maxAbs = std::max(result.maxAbs, error);
+            indices.push_back({h5pp::fstr_t<32>(name), estimated, exact, error});
+            if(hasExact) maxDiff = std::max(maxDiff, error);
         };
 
         {
-            std::vector<IndexResult> indices = result.indices;
             for(int i = 0; i < dim; ++i)
                 addIndex(indices, fmt::format("S{}", i + 1), first[i], hasExact ? sobolRef.first[i] : nan);
             for(int i = 0; i < dim; ++i)
                 addIndex(indices, fmt::format("ST{}", i + 1), total[i], hasExact ? sobolRef.total[i] : nan);
-            result.indices = std::move(indices);
         }
         auto pairs   = sobolRef.second;
         auto triples = sobolRef.third;
@@ -120,21 +131,16 @@ namespace sens {
             mask[i] = false;
             mask[j] = false;
 
-            const double Vij = conditional_mean_square(mask) - mean2 - V1[i] - V1[j];
+            const double Vij = conditional_mean_square(tt, weights, mask) - mean2 - V1[i] - V1[j];
 
             V2.emplace(key, Vij);
             return Vij;
         };
 
         // Second-order indices.
-        {
-            std::vector<IndexResult> indices = result.indices;
-            for(const auto &pair : pairs) {
-                const double Vij = secondVariance(pair.i, pair.j);
-
-                addIndex(indices, fmt::format("S{},{}", pair.i + 1, pair.j + 1), Vij / result.variance, pair.value);
-            }
-            result.indices = std::move(indices);
+        for(const auto &pair : pairs) {
+            const double Vij = secondVariance(pair.i, pair.j);
+            addIndex(indices, fmt::format("S{},{}", pair.i + 1, pair.j + 1), Vij / variance, pair.value);
         }
 
         // Third-order indices.
@@ -148,22 +154,19 @@ namespace sens {
             mask[j] = false;
             mask[k] = false;
 
-            const double Vijk = conditional_mean_square(mask) - mean2 - V1[i] - V1[j] - V1[k] - secondVariance(i, j) -
-                                secondVariance(i, k) - secondVariance(j, k);
-            std::vector<IndexResult> indices = result.indices;
-            addIndex(indices, fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / result.variance, triple.value);
-            result.indices = indices;
+            const double Vijk = conditional_mean_square(tt, weights, mask) - mean2 - V1[i] - V1[j] - V1[k] -
+                                secondVariance(i, j) - secondVariance(i, k) - secondVariance(j, k);
+            addIndex(indices, fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / variance, triple.value);
         }
 
         if(hasExact) {
             double sum2 = 0.0;
-            for(const auto &index : result.indices) sum2 += index.error * index.error;
-            result.rmse = std::sqrt(sum2 / result.indices.size());
-        } else {
-            result.rmse = nan;
+            for(const auto &index : indices) sum2 += index.error * index.error;
+            rmse = std::sqrt(sum2 / indices.size());
         }
-        return result;
+        return SobolResult{.rmse = rmse, .maxDiff = maxDiff, .sobolIndices = std::move(indices)};
     }
+
     template<typename Function>
     std::vector<int> randomInitialPivot(Function &&function, const std::vector<std::vector<double>> &grids) {
         if(grids.empty()) throw std::invalid_argument("Empty quadrature grids");
@@ -258,70 +261,83 @@ namespace sens {
     }
 
     struct Status {
-        int               sweeps             = 0;
-        int               sweepsUnchanged    = 0;
-        int               sweepLastProgress  = 0;
-        int               minSweepsUnchanged = 1;
-        double            changeTol          = 1e-12;
-        int               nEval              = 0;
-        SensitivityResult sensRes            = {};
-        h5pp::varr_t<int> bondDims;
-        h5pp::vstr_t      stopMsg = {};
+        int              sweeps             = 0;
+        int              sweepsUnchanged    = 0;
+        int              sweepLastProgress  = 0;
+        int              minSweepsUnchanged = 1;
+        double           changeTol          = 1e-12;
+        int              nEval              = 0;
+        Statistics       statistics         = {};
+        SobolResult      sobolResult        = {};
+        std::vector<int> bondDims;
+        std::string      stopMsg = {};
     };
 
-    // struct IndexResult {
-    //     std::string name;
-    //     double      estimated;
-    //     double      exact;
-    //     double      error;
-    // };
-
-    // struct SensitivityResult {
-    //     double                   mean     = 0.0;
-    //     double                   variance = 0.0;
-    //     double                   rmse     = 0.0;
-    //     double                   maxAbs   = 0.0;
-    //     std::vector<IndexResult> indices;
-    // };
-
     void appendStatus(h5pp::File &file, const Status &status) {
-        static h5pp::hid::h5t H5_INDEX_TYPE;
-        static h5pp::hid::h5t H5_SENSRES_TYPE;
-        static h5pp::hid::h5t H5_STATUS_TYPE;
-        if(!H5_INDEX_TYPE.valid()) {
-            H5_INDEX_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(IndexResult));
-            H5Tinsert(H5_INDEX_TYPE, "name", HOFFSET(IndexResult, name), h5pp::vstr_t::get_h5type());
-            H5Tinsert(H5_INDEX_TYPE, "estimated", HOFFSET(IndexResult, estimated), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_INDEX_TYPE, "exact", HOFFSET(IndexResult, exact), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_INDEX_TYPE, "error", HOFFSET(IndexResult, error), H5T_NATIVE_DOUBLE);
-        }
+        struct H5Status {
+            int               sweeps;
+            int               sweepsUnchanged;
+            int               sweepLastProgress;
+            int               minSweepsUnchanged;
+            double            changeTol;
+            int               nEval;
+            double            stat_mean;
+            double            stat_variance;
+            double            sobol_rmse;
+            double            sobol_maxDiff;
+            h5pp::varr_t<int> bondDims;
+            h5pp::vstr_t      stopMsg;
+            using vlen_type = h5pp::varr_t<int>;
+        };
 
-        if(!H5_SENSRES_TYPE.valid()) {
-            h5pp::hid::h5t H5_INDEXVARR_TYPE = H5Tvlen_create(H5_INDEX_TYPE);
-            H5_SENSRES_TYPE                  = H5Tcreate(H5T_COMPOUND, sizeof(SensitivityResult));
-            H5Tinsert(H5_SENSRES_TYPE, "mean", HOFFSET(SensitivityResult, mean), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_SENSRES_TYPE, "variance", HOFFSET(SensitivityResult, variance), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_SENSRES_TYPE, "rmse", HOFFSET(SensitivityResult, rmse), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_SENSRES_TYPE, "maxAbs", HOFFSET(SensitivityResult, maxAbs), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_SENSRES_TYPE, "indices", HOFFSET(SensitivityResult, indices), H5_INDEXVARR_TYPE);
-        }
+        auto h5status = H5Status{
+            .sweeps             = status.sweeps,
+            .sweepsUnchanged    = status.sweepsUnchanged,
+            .sweepLastProgress  = status.sweepLastProgress,
+            .minSweepsUnchanged = status.minSweepsUnchanged,
+            .changeTol          = status.changeTol,
+            .nEval              = status.nEval,
+            .stat_mean          = status.statistics.mean,
+            .stat_variance      = status.statistics.variance,
+            .sobol_rmse         = status.sobolResult.rmse,
+            .sobol_maxDiff      = status.sobolResult.maxDiff,
+            .bondDims           = status.bondDims,
+            .stopMsg            = status.stopMsg.c_str(),
+        };
+
+        static h5pp::hid::h5t H5_STATUS_TYPE;
+        std::string           statusTablePath = "tci/status";
 
         if(!H5_STATUS_TYPE.valid()) {
             // Register the compound type
-            H5_STATUS_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(Status));
-            H5Tinsert(H5_STATUS_TYPE, "sweeps", HOFFSET(Status, sweeps), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "sweepsUnchanged", HOFFSET(Status, sweepsUnchanged), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "sweepLastProgress", HOFFSET(Status, sweepLastProgress), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "minSweepsUnchanged", HOFFSET(Status, minSweepsUnchanged), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "changeTol", HOFFSET(Status, changeTol), H5T_NATIVE_DOUBLE);
-            H5Tinsert(H5_STATUS_TYPE, "nEval", HOFFSET(Status, nEval), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "sensRes", HOFFSET(Status, sensRes), H5_SENSRES_TYPE);
-            H5Tinsert(H5_STATUS_TYPE, "bondDims", HOFFSET(Status, bondDims), h5pp::varr_t<int>::get_h5type());
-            H5Tinsert(H5_STATUS_TYPE, "stopMsg", HOFFSET(Status, stopMsg), h5pp::vstr_t::get_h5type());
-            file.createTable(H5_STATUS_TYPE, "tci/statusLog", "Status Log");
+            H5_STATUS_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(H5Status));
+            H5Tinsert(H5_STATUS_TYPE, "sweeps", HOFFSET(H5Status, sweeps), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "sweepsUnchanged", HOFFSET(H5Status, sweepsUnchanged), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "sweepLastProgress", HOFFSET(H5Status, sweepLastProgress), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "minSweepsUnchanged", HOFFSET(H5Status, minSweepsUnchanged), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "changeTol", HOFFSET(H5Status, changeTol), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "nEval", HOFFSET(H5Status, nEval), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "stat_mean", HOFFSET(H5Status, stat_mean), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "stat_variance", HOFFSET(H5Status, stat_variance), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "sobol_rmse", HOFFSET(H5Status, sobol_rmse), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "sobol_maxDiff", HOFFSET(H5Status, sobol_maxDiff), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "bondDims", HOFFSET(H5Status, bondDims), h5pp::varr_t<int>::get_h5type());
+            H5Tinsert(H5_STATUS_TYPE, "stopMsg", HOFFSET(H5Status, stopMsg), h5pp::vstr_t::get_h5type());
         }
+        if(!file.linkExists(statusTablePath)) { file.createTable(H5_STATUS_TYPE, statusTablePath, "Status Log"); }
+        file.appendTableRecords(h5status, statusTablePath);
 
-        file.appendTableRecords(status, "tci/statusLog");
+        static h5pp::hid::h5t H5_INDEX_TYPE;
+        std::string           sobolTablePath = fmt::format("tci/sweep_{}/sobol", status.sweeps);
+        if(!H5_INDEX_TYPE.valid()) {
+            H5_INDEX_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(SobolIndex));
+            H5Tinsert(H5_INDEX_TYPE, "name", HOFFSET(SobolIndex, name), h5pp::fstr_t<32>::get_h5type());
+            H5Tinsert(H5_INDEX_TYPE, "estimated", HOFFSET(SobolIndex, estimated), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_INDEX_TYPE, "exact", HOFFSET(SobolIndex, exact), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_INDEX_TYPE, "error", HOFFSET(SobolIndex, error), H5T_NATIVE_DOUBLE);
+        }
+        if(!file.linkExists(sobolTablePath)) { file.createTable(H5_INDEX_TYPE, sobolTablePath, "Sobol Indices"); }
+        file.writeTableRecords(status.sobolResult.sobolIndices, sobolTablePath);
     }
     void writeStatusLog(h5pp::File &file, const std::vector<Status> &statusLog) {
         for(auto &status : statusLog) appendStatus(file, status);
@@ -372,15 +388,16 @@ namespace sens {
                        "maxDeltaS");
         }
 
-        auto report = [&](int sweeps, SensitivityResult &result) {
-            auto previous = std::move(result);
-            result        = calculateSobol(ci.tt, weights, exactSobol);
+        auto report = [&](int sweeps, SobolResult &result) {
+            auto previous   = std::move(result);
+            auto statistics = calculateStatstics(ci.tt, weights);
+            result          = calculateSobol(ci.tt, weights, statistics, exactSobol);
 
             const auto nEval = ci.f.nEval();
 
             if(hasExact) {
                 fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", sweeps, nEval, result.rmse,
-                           result.maxAbs);
+                           result.maxDiff);
 
                 for(std::size_t i = 0; i < relTolTargets.size(); ++i) {
                     if(!reached[i] && result.rmse <= relTolTargets[i]) {
@@ -391,19 +408,19 @@ namespace sens {
             } else {
                 std::string delta = "-";
 
-                if(previous.indices.size() == result.indices.size()) {
+                if(previous.sobolIndices.size() == result.sobolIndices.size()) {
                     double maxDeltaS = 0.0;
 
-                    for(std::size_t i = 0; i < result.indices.size(); ++i) {
-                        maxDeltaS =
-                            std::max(maxDeltaS, std::abs(result.indices[i].estimated - previous.indices[i].estimated));
+                    for(std::size_t i = 0; i < result.sobolIndices.size(); ++i) {
+                        maxDeltaS = std::max(
+                            maxDeltaS, std::abs(result.sobolIndices[i].estimated - previous.sobolIndices[i].estimated));
                     }
 
                     delta = fmt::format("{:.3e}", maxDeltaS);
                 }
 
-                fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", sweeps, nEval, result.mean,
-                           result.variance, delta);
+                fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", sweeps, nEval, statistics.mean,
+                           statistics.variance, delta);
             }
         };
 
@@ -417,14 +434,10 @@ namespace sens {
             return dimensions;
         };
 
-        auto statusLog = std::vector<Status>();
-
-        {
-            // The initial state
-            statusLog.emplace_back();
-            auto &statusInit = statusLog.back();
-            report(statusInit.sweeps, statusInit.sensRes); // Initial TT, before explicit sweeps.
-        }
+        auto statusLog            = std::vector<Status>(1);
+        statusLog.back().nEval    = ci.f.nEval();
+        statusLog.back().bondDims = bondDimensions();
+        report(statusLog.back().sweeps, statusLog.back().sobolResult); // Report initial TT, before explicit sweeps.
 
         while(true) {
             assert(!statusLog.empty());
@@ -433,19 +446,19 @@ namespace sens {
             auto       &sLast = statusLog.back();
 
             ci.iterate();
-            report(++sLast.sweeps, sLast.sensRes);
+            report(++sLast.sweeps, sLast.sobolResult);
 
             sLast.bondDims = bondDimensions();
             sLast.nEval    = ci.f.nEval();
 
-            bool isSameMean     = isUnchanged(sLast.sensRes.mean, sPrev.sensRes.mean, sLast.changeTol);
-            bool isSameVariance = isUnchanged(sLast.sensRes.variance, sPrev.sensRes.variance, sLast.changeTol);
+            bool isSameMean     = isUnchanged(sLast.statistics.mean, sPrev.statistics.mean, sLast.changeTol);
+            bool isSameVariance = isUnchanged(sLast.statistics.variance, sPrev.statistics.variance, sLast.changeTol);
             bool isSame         = isSameMean && isSameVariance && sLast.bondDims == sPrev.bondDims;
 
             if(ci.isDone()) {
-                for(std::size_t i = 0; i < sLast.sensRes.indices.size(); ++i) {
-                    isSame &= isUnchanged(sLast.sensRes.indices[i].estimated, sPrev.sensRes.indices[i].estimated,
-                                          sLast.changeTol);
+                for(std::size_t i = 0; i < sLast.sobolResult.sobolIndices.size(); ++i) {
+                    isSame &= isUnchanged(sLast.sobolResult.sobolIndices[i].estimated,
+                                          sPrev.sobolResult.sobolIndices[i].estimated, sLast.changeTol);
                 }
 
                 sLast.sweepsUnchanged = isSame ? sLast.sweepsUnchanged + 1 : 0;
@@ -468,10 +481,11 @@ namespace sens {
         writeStatusLog(h5file, statusLog);
 
         auto        sweepLastProgress = statusLog.back().sweepLastProgress;
-        const auto &stableshot        = statusLog.at(sweepLastProgress);
-        auto        stableResult      = stableshot.sensRes;
-        auto        stableNEval       = stableshot.nEval;
-        auto        stableSweeps      = stableshot.sweeps;
+        const auto &sStable           = statusLog.at(sweepLastProgress);
+        const auto &stableSobol       = sStable.sobolResult;
+        const auto &stableStatistics  = sStable.statistics;
+        auto        stableSweeps      = sStable.sweeps;
+        auto        stableNEval       = sStable.nEval;
 
         // Print results
         auto &lastshot = statusLog.back();
@@ -488,7 +502,7 @@ namespace sens {
         fmt::print("\nFinal bond dimensions: ");
         for(int k = 0; k < dim - 1; ++k) fmt::print("{} ", ci.tt.M[k].n_slices);
 
-        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableResult.mean, stableResult.variance);
+        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableStatistics.mean, stableStatistics.variance);
 
         if(hasExact) {
             fmt::print("\n{:<8} {:>14} {:>14} {:>12}\n", "index", "estimated", "exact", "absError");
@@ -497,10 +511,10 @@ namespace sens {
         }
 
         const std::size_t nPrinted =
-            hasExact && stableResult.indices.size() <= 10 ? stableResult.indices.size() : 2 * dim;
+            hasExact && stableSobol.sobolIndices.size() <= 10 ? stableSobol.sobolIndices.size() : 2 * dim;
 
         for(std::size_t i = 0; i < nPrinted; ++i) {
-            const auto &index = stableResult.indices.at(i);
+            const auto &index = stableSobol.sobolIndices.at(i);
 
             if(hasExact) {
                 fmt::print("{:<8} {:>14.8f} {:>14.8f} {:>12.3e}\n", index.name, index.estimated, index.exact,
@@ -518,7 +532,7 @@ namespace sens {
             double error2    = 0.0;
 
             for(std::size_t i = offset; i < offset + extent; ++i) {
-                const auto &index = stableResult.indices.at(i);
+                const auto &index = stableSobol.sobolIndices.at(i);
 
                 estimated += index.estimated;
 
@@ -551,8 +565,8 @@ namespace sens {
         const std::size_t nThird =
             hasExact ? exactSobol.third.size() : static_cast<std::size_t>(dim) * (dim - 1) * (dim - 2) / 6;
 
-        const std::size_t nThirdAndUp = stableResult.indices.size() - nFirst - nSecond;
-        const std::size_t nFourAndUp  = stableResult.indices.size() - nFirst - nSecond - nThird;
+        const std::size_t nThirdAndUp = stableSobol.sobolIndices.size() - nFirst - nSecond;
+        const std::size_t nFourAndUp  = stableSobol.sobolIndices.size() - nFirst - nSecond - nThird;
 
         const std::size_t offsetSecond = 2 * dim;
         const std::size_t offsetThird  = offsetSecond + nSecond;
@@ -570,8 +584,8 @@ namespace sens {
             fmt::print("{:<10} {:>8} {:>12} {:>12} {:>14} {:>14}\n", "method", "nEval", "RMSE", "maxAbs", "mean",
                        "variance");
 
-            fmt::print("{:<10} {:>8} {:>12.4e} {:>12.4e} {:>14.6e} {:>14.6e}\n", "TCI2", stableNEval, stableResult.rmse,
-                       stableResult.maxAbs, stableResult.mean, stableResult.variance);
+            fmt::print("{:<10} {:>8} {:>12.4e} {:>12.4e} {:>14.6e} {:>14.6e}\n", "TCI2", stableNEval, stableSobol.rmse,
+                       stableSobol.maxDiff, stableStatistics.mean, stableStatistics.variance);
         }
 
         // runSensitivityAnalysis_TTSVD(function, ci, grids, weights, bondDim);
