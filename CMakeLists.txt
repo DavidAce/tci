@@ -37,6 +37,7 @@ add_executable(TCI
         source/quad/GaussLegendre.cpp
         source/rnd/rnd.cpp
         source/cli/cli.cpp
+        source/io/io.cpp
         )
 
 target_include_directories(TCI PRIVATE source)

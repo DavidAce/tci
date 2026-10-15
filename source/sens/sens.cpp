@@ -7,6 +7,10 @@
 #include <cmath>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
+#include <h5pp/details/h5ppEnums.h>
+#include <h5pp/details/h5ppVarr.h>
+#include <h5pp/h5pp.h>
+#include <H5Tpublic.h>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -78,16 +82,21 @@ namespace sens {
         const bool hasExact = sobolRef.first.size() == static_cast<std::size_t>(dim) &&
                               sobolRef.total.size() == static_cast<std::size_t>(dim);
 
-        constexpr double nan      = std::numeric_limits<double>::quiet_NaN();
-        auto             addIndex = [&](std::string name, double estimated, double exact) {
+        constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+        auto addIndex = [&](std::vector<IndexResult> &indices, std::string name, double estimated, double exact) {
             const double error = hasExact ? std::abs(estimated - exact) : nan;
-            result.indices.push_back({std::move(name), estimated, exact, error});
+            indices.push_back({h5pp::vstr_t(name), estimated, exact, error});
             if(hasExact) result.maxAbs = std::max(result.maxAbs, error);
         };
 
-        for(int i = 0; i < dim; ++i) addIndex(fmt::format("S{}", i + 1), first[i], hasExact ? sobolRef.first[i] : nan);
-        for(int i = 0; i < dim; ++i) addIndex(fmt::format("ST{}", i + 1), total[i], hasExact ? sobolRef.total[i] : nan);
-
+        {
+            std::vector<IndexResult> indices = result.indices;
+            for(int i = 0; i < dim; ++i)
+                addIndex(indices, fmt::format("S{}", i + 1), first[i], hasExact ? sobolRef.first[i] : nan);
+            for(int i = 0; i < dim; ++i)
+                addIndex(indices, fmt::format("ST{}", i + 1), total[i], hasExact ? sobolRef.total[i] : nan);
+            result.indices = std::move(indices);
+        }
         auto pairs   = sobolRef.second;
         auto triples = sobolRef.third;
 
@@ -118,10 +127,14 @@ namespace sens {
         };
 
         // Second-order indices.
-        for(const auto &pair : pairs) {
-            const double Vij = secondVariance(pair.i, pair.j);
+        {
+            std::vector<IndexResult> indices = result.indices;
+            for(const auto &pair : pairs) {
+                const double Vij = secondVariance(pair.i, pair.j);
 
-            addIndex(fmt::format("S{},{}", pair.i + 1, pair.j + 1), Vij / result.variance, pair.value);
+                addIndex(indices, fmt::format("S{},{}", pair.i + 1, pair.j + 1), Vij / result.variance, pair.value);
+            }
+            result.indices = std::move(indices);
         }
 
         // Third-order indices.
@@ -137,8 +150,9 @@ namespace sens {
 
             const double Vijk = conditional_mean_square(mask) - mean2 - V1[i] - V1[j] - V1[k] - secondVariance(i, j) -
                                 secondVariance(i, k) - secondVariance(j, k);
-
-            addIndex(fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / result.variance, triple.value);
+            std::vector<IndexResult> indices = result.indices;
+            addIndex(indices, fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / result.variance, triple.value);
+            result.indices = indices;
         }
 
         if(hasExact) {
@@ -212,12 +226,115 @@ namespace sens {
         fmt::print("Mean: {:.8e}, Variance: {:.8e}\n", svdSobol.mean, svdSobol.variance);
     }
 
+    struct h5XfacParam {
+        int    bondDim   = 30;    ///< the max bond dimension of the tensor train
+        double reltol    = 1e-12; ///< CI will stop when pivotError < reltol*max(pivotError)
+        bool   fullPiv   = false; ///< whether to search in the full Pi matrix to find a new pivot
+        int    nRookIter = 3;     ///< number of rook pivoting iterations, used when fullPiv=false
+        bool   useCachedFunction =
+            true; ///< whether the internal caching should be used to avoid function call to the same point.
+    };
+
+    void writeParam(h5pp::File &file, xfac::TensorCI2Param &p) {
+        auto                  h5param = h5XfacParam{.bondDim           = p.bondDim,
+                                                    .reltol            = p.reltol,
+                                                    .fullPiv           = p.fullPiv,
+                                                    .nRookIter         = p.nRookIter,
+                                                    .useCachedFunction = p.useCachedFunction};
+        static h5pp::hid::h5t H5_PARAM_TYPE;
+        if(!H5_PARAM_TYPE.valid()) {
+            // Register the compound type
+            H5_PARAM_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(h5param));
+            H5Tinsert(H5_PARAM_TYPE, "bondDim", HOFFSET(h5XfacParam, bondDim), H5T_NATIVE_INT);
+            H5Tinsert(H5_PARAM_TYPE, "reltol", HOFFSET(h5XfacParam, reltol), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_PARAM_TYPE, "fullPiv", HOFFSET(h5XfacParam, fullPiv), H5T_NATIVE_HBOOL);
+            H5Tinsert(H5_PARAM_TYPE, "nRookIter", HOFFSET(h5XfacParam, nRookIter), H5T_NATIVE_INT);
+            H5Tinsert(H5_PARAM_TYPE, "useCachedFunction", HOFFSET(h5XfacParam, useCachedFunction), H5T_NATIVE_HBOOL);
+            file.createTable(H5_PARAM_TYPE, "xfac/param", "xfac parameters");
+        }
+
+        // Create an empty table
+        file.appendTableRecords(h5param, "xfac/param");
+    }
+
+    struct Status {
+        int               sweeps             = 0;
+        int               sweepsUnchanged    = 0;
+        int               sweepLastProgress  = 0;
+        int               minSweepsUnchanged = 1;
+        double            changeTol          = 1e-12;
+        int               nEval              = 0;
+        SensitivityResult sensRes            = {};
+        h5pp::varr_t<int> bondDims;
+        h5pp::vstr_t      stopMsg = {};
+    };
+
+    // struct IndexResult {
+    //     std::string name;
+    //     double      estimated;
+    //     double      exact;
+    //     double      error;
+    // };
+
+    // struct SensitivityResult {
+    //     double                   mean     = 0.0;
+    //     double                   variance = 0.0;
+    //     double                   rmse     = 0.0;
+    //     double                   maxAbs   = 0.0;
+    //     std::vector<IndexResult> indices;
+    // };
+
+    void appendStatus(h5pp::File &file, const Status &status) {
+        static h5pp::hid::h5t H5_INDEX_TYPE;
+        static h5pp::hid::h5t H5_SENSRES_TYPE;
+        static h5pp::hid::h5t H5_STATUS_TYPE;
+        if(!H5_INDEX_TYPE.valid()) {
+            H5_INDEX_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(IndexResult));
+            H5Tinsert(H5_INDEX_TYPE, "name", HOFFSET(IndexResult, name), h5pp::vstr_t::get_h5type());
+            H5Tinsert(H5_INDEX_TYPE, "estimated", HOFFSET(IndexResult, estimated), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_INDEX_TYPE, "exact", HOFFSET(IndexResult, exact), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_INDEX_TYPE, "error", HOFFSET(IndexResult, error), H5T_NATIVE_DOUBLE);
+        }
+
+        if(!H5_SENSRES_TYPE.valid()) {
+            h5pp::hid::h5t H5_INDEXVARR_TYPE = H5Tvlen_create(H5_INDEX_TYPE);
+            H5_SENSRES_TYPE                  = H5Tcreate(H5T_COMPOUND, sizeof(SensitivityResult));
+            H5Tinsert(H5_SENSRES_TYPE, "mean", HOFFSET(SensitivityResult, mean), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_SENSRES_TYPE, "variance", HOFFSET(SensitivityResult, variance), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_SENSRES_TYPE, "rmse", HOFFSET(SensitivityResult, rmse), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_SENSRES_TYPE, "maxAbs", HOFFSET(SensitivityResult, maxAbs), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_SENSRES_TYPE, "indices", HOFFSET(SensitivityResult, indices), H5_INDEXVARR_TYPE);
+        }
+
+        if(!H5_STATUS_TYPE.valid()) {
+            // Register the compound type
+            H5_STATUS_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(Status));
+            H5Tinsert(H5_STATUS_TYPE, "sweeps", HOFFSET(Status, sweeps), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "sweepsUnchanged", HOFFSET(Status, sweepsUnchanged), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "sweepLastProgress", HOFFSET(Status, sweepLastProgress), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "minSweepsUnchanged", HOFFSET(Status, minSweepsUnchanged), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "changeTol", HOFFSET(Status, changeTol), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_STATUS_TYPE, "nEval", HOFFSET(Status, nEval), H5T_NATIVE_INT);
+            H5Tinsert(H5_STATUS_TYPE, "sensRes", HOFFSET(Status, sensRes), H5_SENSRES_TYPE);
+            H5Tinsert(H5_STATUS_TYPE, "bondDims", HOFFSET(Status, bondDims), h5pp::varr_t<int>::get_h5type());
+            H5Tinsert(H5_STATUS_TYPE, "stopMsg", HOFFSET(Status, stopMsg), h5pp::vstr_t::get_h5type());
+            file.createTable(H5_STATUS_TYPE, "tci/statusLog", "Status Log");
+        }
+
+        file.appendTableRecords(status, "tci/statusLog");
+    }
+    void writeStatusLog(h5pp::File &file, const std::vector<Status> &statusLog) {
+        for(auto &status : statusLog) appendStatus(file, status);
+    }
+
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const Quadrature &makeQuadrature) {
         const int  dim        = function.dimension();
         const auto exactSobol = function.exactSobolIndices();
         const bool hasExact   = exactSobol.first.size() == static_cast<std::size_t>(dim) &&
                                 exactSobol.total.size() == static_cast<std::size_t>(dim);
+
+        auto h5file = h5pp::File(fmt::format("{}.h5", function.name()), h5pp::FileAccess::REPLACE);
 
         // Independent uniform input distributions.
         std::vector<std::vector<double>> grids(dim);
@@ -235,6 +352,8 @@ namespace sens {
         param.reltol  = 1e-12;
         param.fullPiv = false;
         param.pivot1  = randomInitialPivot(function, grids);
+
+        writeParam(h5file, param);
 
         auto f = [&function](const std::vector<double> &x) -> double { return function.evaluate(x); };
         xfac::CTensorCI2<double, double> ci(f, grids, param);
@@ -288,70 +407,75 @@ namespace sens {
             }
         };
 
-        constexpr double changeTol          = 1e-12;
-        constexpr int    minSweepsUnchanged = 1;
-
-        auto isUnchanged = [](double x, double y) {
+        auto isUnchanged = [](double x, double y, double changeTol) {
             return std::abs(x - y) <= changeTol * std::max({1.0, std::abs(x), std::abs(y)});
         };
 
         auto bondDimensions = [&]() {
-            std::vector<arma::uword> dimensions;
-            for(int k = 0; k < dim - 1; ++k) dimensions.push_back(ci.tt.M[k].n_slices);
+            std::vector<int> dimensions;
+            for(int k = 0; k < dim - 1; ++k) dimensions.push_back(static_cast<int>(ci.tt.M[k].n_slices));
             return dimensions;
         };
 
-        auto lastResult      = SensitivityResult();
-        int  sweepsUnchanged = 0;
-        int  sweeps          = 0;
-        report(sweeps, lastResult); // Initial TT, before explicit sweeps.
+        auto statusLog = std::vector<Status>();
 
-        auto        previousResult   = lastResult;
-        auto        previousBondDims = bondDimensions();
-        std::string stopMsg          = fmt::format("maximum number of sweeps reached ({})", maxSweeps);
+        {
+            // The initial state
+            statusLog.emplace_back();
+            auto &statusInit = statusLog.back();
+            report(statusInit.sweeps, statusInit.sensRes); // Initial TT, before explicit sweeps.
+        }
 
-        auto stableResult = lastResult;
-        auto stableNEval  = ci.f.nEval();
-        auto stableSweeps = sweeps;
+        while(true) {
+            assert(!statusLog.empty());
+            statusLog.push_back(statusLog.back()); // Should be safe
+            const auto &sPrev = statusLog.rbegin()[1];
+            auto       &sLast = statusLog.back();
 
-        while(sweeps < maxSweeps) {
             ci.iterate();
-            report(++sweeps, lastResult);
+            report(++sLast.sweeps, sLast.sensRes);
 
-            const auto bondDims       = bondDimensions();
-            bool       isSameMean     = isUnchanged(lastResult.mean, previousResult.mean);
-            bool       isSameVariance = isUnchanged(lastResult.variance, previousResult.variance);
-            bool       isSame         = isSameMean && isSameVariance && bondDims == previousBondDims;
+            sLast.bondDims = bondDimensions();
+            sLast.nEval    = ci.f.nEval();
+
+            bool isSameMean     = isUnchanged(sLast.sensRes.mean, sPrev.sensRes.mean, sLast.changeTol);
+            bool isSameVariance = isUnchanged(sLast.sensRes.variance, sPrev.sensRes.variance, sLast.changeTol);
+            bool isSame         = isSameMean && isSameVariance && sLast.bondDims == sPrev.bondDims;
 
             if(ci.isDone()) {
-                for(std::size_t i = 0; i < lastResult.indices.size(); ++i) {
-                    isSame &= isUnchanged(lastResult.indices[i].estimated, previousResult.indices[i].estimated);
+                for(std::size_t i = 0; i < sLast.sensRes.indices.size(); ++i) {
+                    isSame &= isUnchanged(sLast.sensRes.indices[i].estimated, sPrev.sensRes.indices[i].estimated,
+                                          sLast.changeTol);
                 }
 
-                sweepsUnchanged = isSame ? sweepsUnchanged + 1 : 0;
+                sLast.sweepsUnchanged = isSame ? sLast.sweepsUnchanged + 1 : 0;
 
-                if(!isSame) {
-                    stableResult = lastResult;
-                    stableNEval  = ci.f.nEval();
-                    stableSweeps = sweeps;
-                }
+                if(!isSame) { sLast.sweepLastProgress = sLast.sweeps; }
 
-                if(sweepsUnchanged >= minSweepsUnchanged) {
-                    stopMsg = fmt::format("no change for {} consecutive sweep(s)", sweepsUnchanged);
+                if(sLast.sweepsUnchanged >= sLast.minSweepsUnchanged) {
+                    sLast.stopMsg = fmt::format("no change for {} consecutive sweep(s)", sLast.sweepsUnchanged);
                     break;
                 }
 
             } else {
-                sweepsUnchanged = 0;
+                sLast.sweepsUnchanged   = 0;
+                sLast.sweepLastProgress = sLast.sweeps;
             }
-
-            previousResult   = lastResult;
-            previousBondDims = bondDims;
+            if(sLast.sweeps >= maxSweeps) {
+                sLast.stopMsg = fmt::format("maximum number of sweeps reached ({})", maxSweeps);
+            }
         }
+        writeStatusLog(h5file, statusLog);
+
+        auto        sweepLastProgress = statusLog.back().sweepLastProgress;
+        const auto &stableshot        = statusLog.at(sweepLastProgress);
+        auto        stableResult      = stableshot.sensRes;
+        auto        stableNEval       = stableshot.nEval;
+        auto        stableSweeps      = stableshot.sweeps;
 
         // Print results
-
-        fmt::print("Stopped: {}\n", stopMsg);
+        auto &lastshot = statusLog.back();
+        fmt::print("Stopped: {}\n", lastshot.stopMsg);
 
         if(hasExact) {
             fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");

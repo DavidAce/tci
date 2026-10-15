@@ -1,7 +1,7 @@
 #pragma once
+#include <h5pp/h5pp.h>
 #include <string>
 #include <vector>
-
 namespace sens::util {
     struct PairReference {
         int    i, j; // Zero-based variable indices
@@ -21,17 +21,17 @@ namespace sens::util {
     };
 
     struct IndexResult {
-        std::string name;
-        double      estimated;
-        double      exact;
-        double      error;
+        h5pp::vstr_t name;
+        double       estimated;
+        double       exact;
+        double       error;
     };
 
     struct SensitivityResult {
-        double                   mean     = 0.0;
-        double                   variance = 0.0;
-        double                   rmse     = 0.0;
-        double                   maxAbs   = 0.0;
-        std::vector<IndexResult> indices;
+        double                    mean     = 0.0;
+        double                    variance = 0.0;
+        double                    rmse     = 0.0;
+        double                    maxAbs   = 0.0;
+        h5pp::varr_t<IndexResult> indices;
     };
 }
