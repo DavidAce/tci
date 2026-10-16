@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LegendreANOVA3.hpp"
+#include "LegendrePoly3.hpp"
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -16,6 +16,6 @@ class NonlinearPolynomial final : public BaseFunction {
     sens::util::SobolReference exactSobolIndices(/*unknown*/) const override;
 
     private:
-    LegendreANOVA3 polynomial_;
+    LegendrePoly3 polynomial_;
     double            lambda_;
 };

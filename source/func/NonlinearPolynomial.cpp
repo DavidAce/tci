@@ -1,5 +1,5 @@
 #include "func/NonlinearPolynomial.hpp"
-#include "LegendreANOVA3.hpp"
+#include "LegendrePoly3.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string_view>

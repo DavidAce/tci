@@ -256,19 +256,24 @@ namespace sens {
                                                   const std::vector<std::vector<double>> &grids) {
         std::vector<Predictions> predictions;
         predictions.reserve(cfg::npredictions);
-        auto   ctt      = interp::interpolateTT(tt, grids);
-        double maxError = 0.0;
+        auto   ctt       = interp::interpolateTT(tt, grids);
+        double maxError  = 0.0;
+        double sumError2 = 0.0;
+        fmt::print("=== Model predictions ===\n");
         for(int i = 0; i < cfg::npredictions; ++i) {
             auto point     = randomOffGridPoint(function, grids);
             auto predicted = ctt.eval(point);
             auto funcvalue = function.evaluate(point);
             auto error     = std::abs(predicted - funcvalue);
             maxError       = std::max(maxError, error);
+            sumError2 += error * error;
             predictions.emplace_back(predicted, funcvalue, error, point);
-            fmt::print("prediction {:<4}: {:<15.8e} funcvalue: {:<15.8e} error: {:<15.8e}\n", i, predicted, funcvalue,
-                       error);
+            // fmt::print("prediction {:<4}: {:<15.8e} funcvalue: {:<15.8e} error: {:<15.8e}\n", i, predicted,
+            // funcvalue,
+            //    error);
         }
-        fmt::print("maxError: {:<15.8e}\n", maxError);
+        double rmse = std::sqrt(sumError2 / predictions.size());
+        fmt::print("maxError: {:<15.8e} | rmse {:<15.8e}\n", maxError, rmse);
         return predictions;
     }
 
@@ -458,8 +463,8 @@ namespace sens {
         const auto exactSobol = function.exactSobolIndices();
         const bool hasExact   = exactSobol.first.size() == static_cast<std::size_t>(dim) &&
                                 exactSobol.total.size() == static_cast<std::size_t>(dim);
-
-        auto h5file = h5pp::File(fmt::format("{}.h5", function.name()), h5pp::FileAccess::REPLACE);
+        auto       filepath   = fmt::format("{}/{}.h5", cfg::outdir, function.name());
+        auto       h5file     = h5pp::File(filepath, h5pp::FileAccess::REPLACE);
 
         // Independent uniform input distributions.
         std::vector<std::vector<double>> grids(dim);

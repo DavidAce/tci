@@ -1,8 +1,8 @@
-#include "LegendreANOVA3.hpp"
+#include "LegendrePoly3.hpp"
 #include <cmath>
 #include <stdexcept>
 
-LegendreANOVA3::LegendreANOVA3(int dimension)
+LegendrePoly3::LegendrePoly3(int dimension)
     : dim_(dimension), a_(dimension), b_(dimension * dimension, 0.0),
       c_(dimension * dimension * dimension, 0.0) {
     if(dim_ < 3) throw std::invalid_argument("Need at least three variables");
@@ -37,17 +37,17 @@ LegendreANOVA3::LegendreANOVA3(int dimension)
     for(auto& c : c_) c *= scale3;
 }
 
-std::string_view LegendreANOVA3::name() const { return "CoupledPolynomial"; }
-int LegendreANOVA3::dimension() const { return dim_; }
-std::pair<double, double> LegendreANOVA3::domain(int) const { return {0.0, 1.0}; }
+std::string_view LegendrePoly3::name() const { return "LegendrePoly3"; }
+int LegendrePoly3::dimension() const { return dim_; }
+std::pair<double, double> LegendrePoly3::domain(int) const { return {0.0, 1.0}; }
 
-std::vector<int> LegendreANOVA3::initialPivot() const {
+std::vector<int> LegendrePoly3::initialPivot() const {
     std::vector<int> pivot(dim_);
     for(int i = 0; i < dim_; ++i) pivot[i] = (2 + 3 * i) % 15;
     return pivot;
 }
 
-double LegendreANOVA3::evaluate(const std::vector<double>& x) const {
+double LegendrePoly3::evaluate(const std::vector<double>& x) const {
     std::vector<double> z(dim_);
     for(int i = 0; i < dim_; ++i) z[i] = std::sqrt(12.0) * (x[i] - 0.5);
 
@@ -67,7 +67,7 @@ double LegendreANOVA3::evaluate(const std::vector<double>& x) const {
     return result;
 }
 
-sens::util::SobolReference LegendreANOVA3::exactSobolIndices() const {
+sens::util::SobolReference LegendrePoly3::exactSobolIndices() const {
     sens::util::SobolReference ref;
     ref.first.resize(dim_);
     ref.total.resize(dim_);

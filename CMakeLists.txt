@@ -29,7 +29,7 @@ add_executable(TCI
         source/main.cpp 
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
-        source/func/LegendreANOVA3.cpp
+        source/func/LegendrePoly3.cpp
         source/func/NonlinearPolynomial.cpp
         source/sens/sens.cpp
         source/quad/ClenshawCurtis.cpp

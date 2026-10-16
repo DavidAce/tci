@@ -17,6 +17,7 @@ import math
 import subprocess
 import time
 import sys
+import os
 import warnings
 
 from pathlib import Path
@@ -29,6 +30,8 @@ from sklearn.exceptions import ConvergenceWarning
 from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 from numba import njit
+
+from h5loader import load_tci_predictions, prediction_errors
 
 A, B = 7.0, 0.1
 PROBLEM = {
@@ -88,7 +91,7 @@ def run_gp(args):
     x = qmc.scale(u, [-math.pi]*3, [math.pi]*3)
     y = ishigami(x)
 
-    print("=== Ishigami / GP (Vingren kernel + SALib, noiseless) ===")
+    print("=== Ishigami / GP (Benjamin's kernel + SALib, noiseless) ===")
     print(f"Training: scrambled Sobol | seed={args.gp_seed} | noise=0")
     print("Kernel: ConstantKernel(1, [1e-5,1e5]) * RBF(1, [1e-5,1e5]) [isotropic]")
     print(f"GP: normalize_y=True | alpha={args.alpha:g} | restarts={args.gp_restarts}")
@@ -130,7 +133,21 @@ def run_gp(args):
     for name, estimated, exact in zip(NAMES, last_indices, EXACT):
         print(f"{name:<8} {estimated:14.8f} {exact:14.8f} {abs(estimated-exact):12.3e}")
     print("\nnEval counts original Ishigami function evaluations for GP training.")
-    print("GP predictions for SALib integration do not increase nEval.")
+
+    if args.tci_h5 is not None:
+        dirname = os.path.dirname(__file__)
+        filename = os.path.join(dirname, args.tci_h5)
+        X_test, y_exact, y_tci = load_tci_predictions(filename)
+
+        y_gp = np.asarray(gp.predict(X_test)).reshape(-1)
+        tci_error = prediction_errors(y_exact, y_tci)
+        gp_error  = prediction_errors(y_exact, y_gp)
+
+        print("\n=== Prediction accuracy ===")
+        print(f"{'method':<10} {'RMSE':>14} {'maxAbs':>14}")
+        print(f"{'TCI':<10} {tci_error['rmse']:>14.6e} {tci_error['maxAbs']:>14.6e}")
+        print(f"{'GP':<10} {gp_error['rmse']:>14.6e} {gp_error['maxAbs']:>14.6e}")
+
 
 
 def run_tci(args, tci_args):
@@ -161,7 +178,7 @@ def main():
     parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')
     parser.add_argument('--gp-restarts', type=int, default=10, help='Number of additional attempts to optimize the GP kernel parameters.')
     parser.add_argument('--alpha', type=float, default=1e-8, help='Small value added to the GP covariance diagonal for numerical stability.')
-        
+    parser.add_argument("--tci-h5", type=str, default='tci/Ishigami.h5', help="TCI HDF5 file path (relative to this .py file) containing prediction points")
     
     args = parser.parse_args(python_args)
     if tci_args and args.tci is None:
@@ -175,6 +192,9 @@ def main():
 
     run_tci(args, tci_args)
     run_gp(args)
+
+
+
 
 
 if __name__ == "__main__":

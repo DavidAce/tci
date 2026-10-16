@@ -3,7 +3,7 @@
 
 
 /*!
- * Third-order Legendre ANOVA (ANalysis Of VAriance) polynomial.
+ * Third-order Legendre polynomial.
  *
  * A custom sensitivity-analysis benchmark constructed from
  * products of orthonormal, first-degree shifted Legendre polynomials
@@ -43,9 +43,9 @@
  * [2] PolynomialChaosReporter
  *     https://mooseframework.inl.gov/source/reporters/PolynomialChaosReporter.html
  */
-class LegendreANOVA3 final : public BaseFunction {
+class LegendrePoly3 final : public BaseFunction {
 public:
-    explicit LegendreANOVA3(int dimension = 8);
+    explicit LegendrePoly3(int dimension = 8);
 
     std::string_view name() const override;
     int dimension() const override;

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""CoupledPolynomial: C++ TCI versus Gaussian-process Sobol indices.
+"""LegendrePoly3: C++ TCI versus Gaussian-process Sobol indices.
 
-Faithfully reproduces source/func/CoupledPolynomial.cpp in DavidAce/tci.
-The C++ main.cpp currently uses CoupledPolynomial(20).
+Faithfully reproduces source/func/LegendrePoly3.cpp in DavidAce/tci.
+The C++ main.cpp currently uses LegendrePoly3(8) by default.
 
 Requirements: numpy, scipy, scikit-learn, SALib, numba.
 Everything after -- is passed verbatim to the C++ TCI executable.
@@ -12,6 +12,7 @@ import argparse
 import math
 import subprocess
 import sys
+import os
 import time
 import warnings
 from pathlib import Path
@@ -26,6 +27,7 @@ from sklearn.exceptions import ConvergenceWarning
 from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 
+from h5loader import load_tci_predictions, prediction_errors
 
 def coefficients(dim):
     """Coefficients and normalization from CoupledPolynomial.cpp (0-based i,j,k)."""
@@ -174,7 +176,7 @@ def run_gp(args):
     )
     y = coupled_polynomial(u, a, b, c)
 
-    print(f'=== CoupledPolynomial / GP (dim={dim}, noiseless) ===')
+    print(f'=== LegendrePoly3 / GP (dim={dim}, noiseless) ===')
     print(f'Training: scrambled Sobol | seed={args.gp_seed} | noise=0')
     print('Kernel: ConstantKernel(1, [1e-5,1e5]) * RBF(1, [1e-5,1e5]) [isotropic]')
     print(f'GP: normalize_y=True | alpha={args.alpha:g} | restarts={args.gp_restarts}')
@@ -215,11 +217,26 @@ def run_gp(args):
     print('nEval counts original-function GP training evaluations; '
           'SALib GP predictions do not add to nEval.')
 
+    if args.tci_h5 is not None:
+        dirname = os.path.dirname(__file__)
+        filename = os.path.join(dirname, args.tci_h5)
+        X_test, y_exact, y_tci = load_tci_predictions(filename)
+
+        y_gp = np.asarray(gp.predict(X_test)).reshape(-1)
+        tci_error = prediction_errors(y_exact, y_tci)
+        gp_error  = prediction_errors(y_exact, y_gp)
+
+        print("\n=== Prediction accuracy ===")
+        print(f"{'method':<10} {'RMSE':>14} {'maxAbs':>14}")
+        print(f"{'TCI':<10} {tci_error['rmse']:>14.6e} {tci_error['maxAbs']:>14.6e}")
+        print(f"{'GP':<10} {gp_error['rmse']:>14.6e} {gp_error['maxAbs']:>14.6e}")
+
+
 
 def run_tci(args, tci_args):
     if args.tci is None:
         return
-    cmd = [str(args.tci.expanduser().resolve()), '--function', 'cpoly', *tci_args]
+    cmd = [str(args.tci.expanduser().resolve()), '--function', 'legendre', *tci_args]
     print(f"=== C++ TCI === [{' '.join(cmd)}]", flush=True)
     subprocess.run(cmd, check=True)
     print(flush=True)
@@ -242,7 +259,8 @@ def main():
     parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')
     parser.add_argument('--gp-restarts', type=int, default=10, help='Number of additional attempts to optimize the GP kernel parameters.')
     parser.add_argument('--alpha', type=float, default=1e-8, help='Small value added to the GP covariance diagonal for numerical stability.')
-    
+    parser.add_argument("--tci-h5", type=str, default='tci/LegendrePoly3.h5', help="TCI HDF5 file path (relative to this .py file) containing prediction points")
+
 
     args = parser.parse_args(python_args)
 
@@ -255,9 +273,9 @@ def main():
     if tci_args and args.tci is None:
         parser.error('TCI arguments supplied without --tci')
     if any(s == '--function' or s.startswith('--function=') for s in tci_args):
-        parser.error('C++ --function is automatically set to cpoly')
+        parser.error('C++ --function is automatically set to "legendre"')
     if args.tci and args.dimension != 8:
-        parser.error('C++ main.cpp currently uses CoupledPolynomial(20); '
+        parser.error('C++ main.cpp currently uses LegendrePoly3(20); '
                      'set --dimension 20 or change the C++ dimension')
 
     run_tci(args, tci_args)
