@@ -23,7 +23,6 @@ namespace sens {
     struct Status {
         int              sweeps             = 0;
         int              sweepsUnchanged    = 0;
-        int              sweepLastProgress  = 0;
         int              minSweepsUnchanged = 1;
         double           changeTol          = 1e-12;
         int              nEval              = 0;
@@ -391,7 +390,6 @@ namespace sens {
         struct H5Status {
             int               sweeps;
             int               sweepsUnchanged;
-            int               sweepLastProgress;
             int               minSweepsUnchanged;
             double            changeTol;
             int               nEval;
@@ -407,7 +405,6 @@ namespace sens {
         auto h5status = H5Status{
             .sweeps             = status.sweeps,
             .sweepsUnchanged    = status.sweepsUnchanged,
-            .sweepLastProgress  = status.sweepLastProgress,
             .minSweepsUnchanged = status.minSweepsUnchanged,
             .changeTol          = status.changeTol,
             .nEval              = status.nEval,
@@ -427,7 +424,6 @@ namespace sens {
             H5_STATUS_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(H5Status));
             H5Tinsert(H5_STATUS_TYPE, "sweeps", HOFFSET(H5Status, sweeps), H5T_NATIVE_INT);
             H5Tinsert(H5_STATUS_TYPE, "sweepsUnchanged", HOFFSET(H5Status, sweepsUnchanged), H5T_NATIVE_INT);
-            H5Tinsert(H5_STATUS_TYPE, "sweepLastProgress", HOFFSET(H5Status, sweepLastProgress), H5T_NATIVE_INT);
             H5Tinsert(H5_STATUS_TYPE, "minSweepsUnchanged", HOFFSET(H5Status, minSweepsUnchanged), H5T_NATIVE_INT);
             H5Tinsert(H5_STATUS_TYPE, "changeTol", HOFFSET(H5Status, changeTol), H5T_NATIVE_DOUBLE);
             H5Tinsert(H5_STATUS_TYPE, "nEval", HOFFSET(H5Status, nEval), H5T_NATIVE_INT);
@@ -498,7 +494,7 @@ namespace sens {
         fmt::print("\n=== {} (dim={}) ===\n", function.name(), dim);
 
         if(hasExact) {
-            fmt::print("{:<11} {:>6} {:>8} {:>12} {:>12}\n", "method", "sweeps", "nEval", "RMSE", "maxAbs");
+            fmt::print("{:<11} {:>6} {:>8} {:>12} {:>12}\n", "method", "sweeps", "nEval", "RMSE", "maxDiff");
         } else {
             fmt::print("{:<11} {:>6} {:>8} {:>14} {:>14} {:>12}\n", "method", "sweeps", "nEval", "mean", "variance",
                        "maxDeltaS");
@@ -550,6 +546,34 @@ namespace sens {
             return dimensions;
         };
 
+        auto predictionRMSE = [&](const std::vector<std::vector<double>> &points,
+                                  const std::vector<double>              &values) -> double {
+            if(points.empty() and values.empty()) return std::numeric_limits<double>::quiet_NaN();
+            if(points.size() != values.size())
+                throw std::runtime_error("size mismatch: points.size() != values.size()");
+            auto   ctt    = interp::interpolateTT(ci.tt, grids);
+            double error2 = 0.0;
+            for(std::size_t i = 0; i < points.size(); ++i) {
+                const double predicted = ctt.eval(points[i]);
+                const double diff      = predicted - values[i];
+                error2 += diff * diff;
+            }
+            return std::sqrt(error2 / points.size());
+        };
+
+        // generate a set of control points to gauge convergence
+        std::vector<std::vector<double>> controlPoints;
+        std::vector<double>              controlValues;
+
+        if(!hasExact) {
+            constexpr int nCheck = 16;
+            for(int i = 0; i < nCheck; ++i) {
+                auto x = randomOffGridPoint(function, grids);
+                controlValues.push_back(function.evaluate(x));
+                controlPoints.push_back(std::move(x));
+            }
+        }
+
         auto statusLog            = std::vector<Status>(1);
         statusLog.back().nEval    = ci.f.nEval();
         statusLog.back().bondDims = bondDimensions();
@@ -573,6 +597,20 @@ namespace sens {
             bool isSame         = isSameMean && isSameVariance && sLast.bondDims == sPrev.bondDims;
 
             if(ci.isDone()) {
+                // Check if converged
+                const double rmse = hasExact ? sLast.sobolResult.rmse : predictionRMSE(controlPoints, controlValues);
+                bool         rmseIsFinite     = std::isfinite(rmse);
+                bool         rmseHasConverged = rmse <= cfg::convTol;
+                if(rmseIsFinite && rmseHasConverged) {
+                    sLast.stopMsg =
+                        hasExact ? fmt::format("Converged: RMSE for Sobol indices reached {:.3e} <= {:.3e} (convTol)",
+                                               rmse, cfg::convTol)
+                                 : fmt::format("Converged: RMSE for off-grid points reached {:.3e} <= {:.3e} (convTol)",
+                                               rmse, cfg::convTol);
+                    break;
+                }
+
+                // Check if saturated
                 for(std::size_t i = 0; i < sLast.sobolResult.sobolIndices.size(); ++i) {
                     isSame &= isUnchanged(sLast.sobolResult.sobolIndices[i].estimated,
                                           sPrev.sobolResult.sobolIndices[i].estimated, sLast.changeTol);
@@ -580,34 +618,31 @@ namespace sens {
 
                 sLast.sweepsUnchanged = isSame ? sLast.sweepsUnchanged + 1 : 0;
 
-                if(!isSame) { sLast.sweepLastProgress = sLast.sweeps; }
-
                 if(sLast.sweepsUnchanged >= sLast.minSweepsUnchanged) {
-                    sLast.stopMsg = fmt::format("no change for {} consecutive sweep(s)", sLast.sweepsUnchanged);
+                    sLast.stopMsg =
+                        fmt::format("Saturated: no change for {} consecutive sweep(s)", sLast.sweepsUnchanged);
                     break;
                 }
 
             } else {
-                sLast.sweepsUnchanged   = 0;
-                sLast.sweepLastProgress = sLast.sweeps;
+                sLast.sweepsUnchanged = 0;
             }
             if(sLast.sweeps >= maxSweeps) {
-                sLast.stopMsg = fmt::format("maximum number of sweeps reached ({})", maxSweeps);
+                sLast.stopMsg = fmt::format("MaxSweeps: maximum number of sweeps reached ({})", maxSweeps);
                 break;
             }
         }
         writeStatusLog(h5file, statusLog);
 
-        auto        sweepLastProgress = statusLog.back().sweepLastProgress;
-        const auto &sStable           = statusLog.at(sweepLastProgress);
-        const auto &stableSobol       = sStable.sobolResult;
-        const auto &stableStatistics  = sStable.statistics;
-        auto        stableSweeps      = sStable.sweeps;
-        auto        stableNEval       = sStable.nEval;
+        const auto &sFinal          = statusLog.back();
+        const auto &finalSobol      = sFinal.sobolResult;
+        const auto &finalStatistics = sFinal.statistics;
+        auto        stableSweeps    = sFinal.sweeps;
+        auto        stableNEval     = sFinal.nEval;
 
         // Print results
         auto &lastshot = statusLog.back();
-        fmt::print("Stopped: {}\n", lastshot.stopMsg);
+        fmt::print("{}\n", lastshot.stopMsg);
 
         if(hasExact) {
             fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");
@@ -617,8 +652,8 @@ namespace sens {
             }
         }
 
-        fmt::print("\nFinal bond dimensions: {} ", sStable.bondDims);
-        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableStatistics.mean, stableStatistics.variance);
+        fmt::print("\nFinal bond dimensions: {} ", sFinal.bondDims);
+        fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", finalStatistics.mean, finalStatistics.variance);
 
         if(hasExact) {
             fmt::print("\n{:<8} {:>14} {:>14} {:>12}\n", "index", "estimated", "exact", "absError");
@@ -627,10 +662,10 @@ namespace sens {
         }
 
         const std::size_t nPrinted =
-            hasExact && stableSobol.sobolIndices.size() <= 10 ? stableSobol.sobolIndices.size() : 2 * dim;
+            hasExact && finalSobol.sobolIndices.size() <= 10 ? finalSobol.sobolIndices.size() : 2 * dim;
 
         for(std::size_t i = 0; i < nPrinted; ++i) {
-            const auto &index = stableSobol.sobolIndices.at(i);
+            const auto &index = finalSobol.sobolIndices.at(i);
 
             if(hasExact) {
                 fmt::print("{:<8} {:>14.8f} {:>14.8f} {:>12.3e}\n", index.name, index.estimated, index.exact,
@@ -648,7 +683,7 @@ namespace sens {
             double error2    = 0.0;
 
             for(std::size_t i = offset; i < offset + extent; ++i) {
-                const auto &index = stableSobol.sobolIndices.at(i);
+                const auto &index = finalSobol.sobolIndices.at(i);
 
                 estimated += index.estimated;
 
@@ -677,28 +712,20 @@ namespace sens {
 
         const std::size_t nFirst  = dim;
         const std::size_t nSecond = hasExact ? exactSobol.second.size() : static_cast<std::size_t>(dim) * (dim - 1) / 2;
-
-        const std::size_t nThird =
-            hasExact ? exactSobol.third.size() : static_cast<std::size_t>(dim) * (dim - 1) * (dim - 2) / 6;
-
         const std::size_t offsetSecond = 2 * dim;
-        const std::size_t offsetThird  = offsetSecond + nSecond;
 
-        const double sumFirst       = printSum("S_i", 0, dim);
-        const double sumSecond      = printSum("S_ij", offsetSecond, nSecond);
-        const double sumThird       = printSum("S_ijk", offsetThird, nThird);
-        const double sumThirdAndUp  = 1.0 - sumFirst - sumSecond;
-        const double sumFourthAndUp = 1.0 - sumFirst - sumSecond - sumThird;
-        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijk...", "-", sumThirdAndUp);
-        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_ijkl...", "-", sumFourthAndUp);
+        const double sumFirst    = printSum("S_i", 0, dim);
+        const double sumSecond   = printSum("S_ij", offsetSecond, nSecond);
+        const double sumResidual = 1.0 - sumFirst - sumSecond;
+        fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_residual", "-", sumResidual);
 
         if(hasExact) {
             fmt::print("\n=== Final TCI accuracy ===\n");
-            fmt::print("{:<10} {:>8} {:>12} {:>12} {:>14} {:>14}\n", "method", "nEval", "RMSE", "maxAbs", "mean",
+            fmt::print("{:<10} {:>8} {:>12} {:>12} {:>14} {:>14}\n", "method", "nEval", "RMSE", "maxDiff", "mean",
                        "variance");
 
-            fmt::print("{:<10} {:>8} {:>12.4e} {:>12.4e} {:>14.6e} {:>14.6e}\n", "TCI2", stableNEval, stableSobol.rmse,
-                       stableSobol.maxDiff, stableStatistics.mean, stableStatistics.variance);
+            fmt::print("{:<10} {:>8} {:>12.4e} {:>12.4e} {:>14.6e} {:>14.6e}\n", "TCI2", stableNEval, finalSobol.rmse,
+                       finalSobol.maxDiff, finalStatistics.mean, finalStatistics.variance);
         }
 
         // runSensitivityAnalysis_TTSVD(function, ci, grids, weights, bondDim);

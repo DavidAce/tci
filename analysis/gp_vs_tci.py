@@ -31,7 +31,7 @@ from SALib.analyze.sobol import analyze as sobol_analyze
 from numba import njit
 
 from common.parse import parse
-from common.h5loader import load_tci_predictions, prediction_errors
+from common.h5loader import load_tci_n_eval, load_tci_predictions, prediction_errors
 from common.functions import ishigami, morris2006, legendrePoly3
 
 
@@ -92,15 +92,16 @@ def compare_tci_gp(args, gp_models, function):
         if X_test.shape[1] != function.dim:
             raise ValueError(f"HDF5 has {X_test.shape[1]} variables, but {function.name} expects {function.dim}")
 
+        tci_neval = load_tci_n_eval(filename)
         tci_error = prediction_errors(y_exact, y_tci)
 
         print("\n=== Prediction accuracy ===")
-        print(f"{'method':<10} {'nEval':>7} {'RMSE':>14} {'maxAbs':>14}")
-        print(f"{'TCI':<10} {'-':>7} {tci_error['rmse']:14.6e} {tci_error['maxAbs']:14.6e}")
+        print(f"{'method':<10} {'nEval':>7} {'RMSE':>14} {'maxDiff':>14}")
+        print(f"{'TCI':<10} {tci_neval:>7} {tci_error['rmse']:14.6e} {tci_error['maxDiff']:14.6e}")
         for n, gp in gp_models:
             y_gp = np.asarray(gp.predict(X_test)).reshape(-1)
             gp_error = prediction_errors(y_exact, y_gp)
-            print(f"{'GP':<10} {n:7d} {gp_error['rmse']:>14.6e} {gp_error['maxAbs']:>14.6e}")
+            print(f"{'GP':<10} {n:7d} {gp_error['rmse']:>14.6e} {gp_error['maxDiff']:>14.6e}")
 
 
 def sobol_names(function):

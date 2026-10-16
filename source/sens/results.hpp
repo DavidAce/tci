@@ -15,7 +15,7 @@ namespace sens {
         double                     mean        = 0.0;
         double                     variance    = 0.0;
         double                     sobolRMSE   = 0.0;
-        double                     sobolMaxAbs = 0.0;
+        double                     sobolmaxDiff = 0.0;
         std::vector<std::uint64_t> bondDimensions;
     };
 

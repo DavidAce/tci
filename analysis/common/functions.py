@@ -94,7 +94,7 @@ class morris2006:
         self.include_higher = True
         self.error_slice = slice(None, -1)
         self.kernel_lower = 1e-5
-        self.kernel_upper = 1e6
+        self.kernel_upper = 1e8
 
     def evaluate(self, x):
         return self._evaluate(x, self.active, self.alpha, self.beta)

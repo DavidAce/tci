@@ -4,6 +4,10 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+def load_tci_n_eval(filename):
+    with h5py.File(Path(filename), "r") as h5:
+        return int(h5["tci/status"][-1]["nEval"])
+
 def load_tci_predictions(filename):
     with h5py.File(Path(filename), "r") as h5:
         data = h5["tci/predictions"][:]
@@ -32,5 +36,6 @@ def prediction_errors(y_exact, y_pred):
 
     return {
         "rmse": np.sqrt(np.mean(error**2)),
-        "maxAbs": np.max(np.abs(error)),
+        "maxDiff": np.max(np.abs(error)),
     }
+

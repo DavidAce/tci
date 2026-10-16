@@ -52,7 +52,7 @@ def indices(result):
 
 def print_table(title, results, sizes, reference, details=False):
     print(f"\n=== {title} ===")
-    print(f"{'method':<12}{'nEval':>8}{'RMSE':>14}{'maxAbs':>14}")
+    print(f"{'method':<12}{'nEval':>8}{'RMSE':>14}{'maxDiff':>14}")
     for n, result in zip(sizes, results):
         values = indices(result)
         errors = [values[k] - reference[k] for k in reference]
