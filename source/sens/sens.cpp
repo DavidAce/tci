@@ -1,5 +1,7 @@
 #include "sens.hpp"
+#include "cfg/cfg.hpp"
 #include "func/Base.hpp"
+#include "interp/interp.hpp"
 #include "quad/quadrature.hpp"
 #include "rnd/rnd.hpp"
 #include "tt_svd.hpp"
@@ -18,6 +20,44 @@
 
 namespace sens {
     using namespace util;
+    struct Status {
+        int              sweeps             = 0;
+        int              sweepsUnchanged    = 0;
+        int              sweepLastProgress  = 0;
+        int              minSweepsUnchanged = 1;
+        double           changeTol          = 1e-12;
+        int              nEval              = 0;
+        Statistics       statistics         = {};
+        SobolResult      sobolResult        = {};
+        std::vector<int> bondDims;
+        std::string      stopMsg = {};
+    };
+    struct Predictions {
+        using vlen_type                = h5pp::varr_t<double>;
+        double               predicted = 0.0;
+        double               funcvalue = 0.0;
+        double               error     = 0.0;
+        h5pp::varr_t<double> point;
+    };
+
+    struct h5XfacParam {
+        using vlen_type = h5pp::varr_t<int>;
+
+        int               bondDim; ///< the max bond dimension of the tensor train
+        double            reltol;  ///< CI will stop when pivotError < reltol*max(pivotError)
+        h5pp::varr_t<int> pivot1;
+        bool              fullPiv;   ///< whether to search in the full Pi matrix to find a new pivot
+        int               nRookIter; ///< number of rook pivoting iterations, used when fullPiv=false
+        bool useCachedFunction;      ///< whether the internal caching should be used to avoid function call to the same
+        ///< point.
+    };
+
+    struct h5TCIParam {
+        using vlen_type = h5pp::varr_t<double>;
+        int                  dim;
+        h5pp::vstr_t         name;
+        h5pp::varr_t<double> reltols;
+    };
 
     // Integrate selected variables before squaring.
     // The remaining variables are integrated after squaring.
@@ -45,7 +85,50 @@ namespace sens {
         }
         return G(0, 0);
     };
+    template<typename Function>
+    std::vector<int> randomInitialPivot(Function &&function, const std::vector<std::vector<double>> &grids) {
+        if(grids.empty()) throw std::invalid_argument("Empty quadrature grids");
+        int                 dim   = static_cast<int>(grids.size());
+        int                 trial = 0;
+        std::vector<int>    pivot1(dim, 0);
+        std::vector<double> initial_state(dim, 0);
+        while(true) {
+            for(int k = 0; k < dim; k++) {
+                if(grids[k].empty()) throw std::invalid_argument("Empty quadrature grid");
+                pivot1[k]        = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
+                initial_state[k] = grids[k][pivot1[k]];
+            }
+            double initial_value = std::abs(function.evaluate(initial_state));
+            if(std::isfinite(initial_value) && initial_value != 0.0) {
+                fmt::print("param.pivot1: {} | value {:.8e}\n", pivot1, initial_value);
+                break;
+            }
+            if(++trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
+        }
+        return pivot1;
+    }
 
+    std::vector<double> randomOffGridPoint(const BaseFunction                     &function,
+                                           const std::vector<std::vector<double>> &grids) {
+        const int dim = function.dimension();
+        if(grids.size() != static_cast<std::size_t>(dim)) throw std::invalid_argument("Grid dimension mismatch");
+
+        auto pointOutOfBounds = [](double xk, double lo, double hi) -> bool { return xk <= lo || xk >= hi; };
+        auto pointIsOnTheGrid = [](double xk, const std::vector<double> &grid) -> bool {
+            return std::find(grid.begin(), grid.end(), xk) != grid.end();
+        };
+        constexpr double    nan = std::numeric_limits<double>::quiet_NaN();
+        std::vector<double> x(dim, nan);
+        for(int k = 0; k < dim; ++k) {
+            const auto [lo, hi] = function.domain(k);
+            if(!(lo < hi)) throw std::invalid_argument("Invalid domain");
+            while(std::isnan(x[k]) || pointOutOfBounds(x[k], lo, hi) || pointIsOnTheGrid(x[k], grids[k])) {
+                x[k] = rnd::uniform_double_box(lo, hi);
+            }
+        }
+
+        return x;
+    }
     template<typename TensorTrain>
     Statistics calculateStatstics(const TensorTrain &tt, const std::vector<std::vector<double>> &weights) {
         Statistics fs;
@@ -168,27 +251,25 @@ namespace sens {
         return SobolResult{.rmse = rmse, .maxDiff = maxDiff, .sobolIndices = std::move(indices)};
     }
 
-    template<typename Function>
-    std::vector<int> randomInitialPivot(Function &&function, const std::vector<std::vector<double>> &grids) {
-        if(grids.empty()) throw std::invalid_argument("Empty quadrature grids");
-        int                 dim   = static_cast<int>(grids.size());
-        int                 trial = 0;
-        std::vector<int>    pivot1(dim, 0);
-        std::vector<double> initial_state(dim, 0);
-        while(true) {
-            for(int k = 0; k < dim; k++) {
-                if(grids[k].empty()) throw std::invalid_argument("Empty quadrature grid");
-                pivot1[k]        = rnd::uniform_integer_box<int>(0, grids[k].size() - 1);
-                initial_state[k] = grids[k][pivot1[k]];
-            }
-            double initial_value = std::abs(function.evaluate(initial_state));
-            if(std::isfinite(initial_value) && initial_value != 0.0) {
-                fmt::print("param.pivot1: {} | value {:.8e}\n", pivot1, initial_value);
-                break;
-            }
-            if(++trial >= 20) throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
+    template<typename Function, typename TensorTrain>
+    std::vector<Predictions> calculatePredictions(Function &&function, const TensorTrain &tt,
+                                                  const std::vector<std::vector<double>> &grids) {
+        std::vector<Predictions> predictions;
+        predictions.reserve(cfg::npredictions);
+        auto   ctt      = interp::interpolateTT(tt, grids);
+        double maxError = 0.0;
+        for(int i = 0; i < cfg::npredictions; ++i) {
+            auto point     = randomOffGridPoint(function, grids);
+            auto predicted = ctt.eval(point);
+            auto funcvalue = function.evaluate(point);
+            auto error     = std::abs(predicted - funcvalue);
+            maxError       = std::max(maxError, error);
+            predictions.emplace_back(predicted, funcvalue, error, point);
+            fmt::print("prediction {:<4}: {:<15.8e} funcvalue: {:<15.8e} error: {:<15.8e}\n", i, predicted, funcvalue,
+                       error);
         }
-        return pivot1;
+        fmt::print("maxError: {:<15.8e}\n", maxError);
+        return predictions;
     }
 
     template<typename Function, typename TCI>
@@ -229,25 +310,6 @@ namespace sens {
 
         fmt::print("Mean: {:.8e}, Variance: {:.8e}\n", svdSobol.mean, svdSobol.variance);
     }
-
-    struct h5XfacParam {
-        using vlen_type = h5pp::varr_t<int>;
-
-        int               bondDim; ///< the max bond dimension of the tensor train
-        double            reltol;  ///< CI will stop when pivotError < reltol*max(pivotError)
-        h5pp::varr_t<int> pivot1;
-        bool              fullPiv;   ///< whether to search in the full Pi matrix to find a new pivot
-        int               nRookIter; ///< number of rook pivoting iterations, used when fullPiv=false
-        bool useCachedFunction;      ///< whether the internal caching should be used to avoid function call to the same
-        ///< point.
-    };
-
-    struct h5TCIParam {
-        using vlen_type = h5pp::varr_t<double>;
-        int                  dim;
-        h5pp::vstr_t         name;
-        h5pp::varr_t<double> reltols;
-    };
 
     void writeParam(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
                     const std::vector<double> &relTolTargets, const Quadrature &makeQuadrature) {
@@ -302,18 +364,23 @@ namespace sens {
         }
     }
 
-    struct Status {
-        int              sweeps             = 0;
-        int              sweepsUnchanged    = 0;
-        int              sweepLastProgress  = 0;
-        int              minSweepsUnchanged = 1;
-        double           changeTol          = 1e-12;
-        int              nEval              = 0;
-        Statistics       statistics         = {};
-        SobolResult      sobolResult        = {};
-        std::vector<int> bondDims;
-        std::string      stopMsg = {};
-    };
+    void writePredictions(h5pp::File &file, const std::vector<Predictions> &predictions) {
+        if(predictions.empty()) return;
+        static h5pp::hid::h5t H5_PREDICTION_TYPE;
+        std::string           PredictionTablePath = "tci/predictions";
+        if(!H5_PREDICTION_TYPE.valid()) {
+            // Register the compound type
+            H5_PREDICTION_TYPE = H5Tcreate(H5T_COMPOUND, sizeof(Predictions));
+            H5Tinsert(H5_PREDICTION_TYPE, "predicted", HOFFSET(Predictions, predicted), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_PREDICTION_TYPE, "funcvalue", HOFFSET(Predictions, funcvalue), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_PREDICTION_TYPE, "error", HOFFSET(Predictions, error), H5T_NATIVE_DOUBLE);
+            H5Tinsert(H5_PREDICTION_TYPE, "point", HOFFSET(Predictions, point), h5pp::varr_t<double>::get_h5type());
+        }
+        if(!file.linkExists(PredictionTablePath)) {
+            file.createTable(H5_PREDICTION_TYPE, PredictionTablePath, "Function value predictions");
+        }
+        file.writeTableRecords(predictions, PredictionTablePath);
+    }
 
     void appendStatus(h5pp::File &file, const Status &status) {
         struct H5Status {
@@ -390,7 +457,7 @@ namespace sens {
         const int  dim        = function.dimension();
         const auto exactSobol = function.exactSobolIndices();
         const bool hasExact   = exactSobol.first.size() == static_cast<std::size_t>(dim) &&
-                              exactSobol.total.size() == static_cast<std::size_t>(dim);
+                                exactSobol.total.size() == static_cast<std::size_t>(dim);
 
         auto h5file = h5pp::File(fmt::format("{}.h5", function.name()), h5pp::FileAccess::REPLACE);
 
@@ -406,10 +473,12 @@ namespace sens {
         }
 
         xfac::TensorCI2Param param;
-        param.bondDim = bondDim;
-        param.reltol  = 1e-12;
-        param.fullPiv = false;
-        param.pivot1  = randomInitialPivot(function, grids);
+        param.bondDim           = bondDim;
+        param.reltol            = 1e-12;
+        param.fullPiv           = false;
+        param.useCachedFunction = true;
+        param.nRookIter         = 3;
+        param.pivot1            = randomInitialPivot(function, grids);
 
         writeParam(h5file, param, function, relTolTargets, makeQuadrature);
 
@@ -543,9 +612,7 @@ namespace sens {
             }
         }
 
-        fmt::print("\nFinal bond dimensions: ");
-        for(int k = 0; k < dim - 1; ++k) fmt::print("{} ", sStable.bondDims);
-
+        fmt::print("\nFinal bond dimensions: {} ", sStable.bondDims);
         fmt::print("\nMean: {:.8e}, Variance: {:.8e}\n", stableStatistics.mean, stableStatistics.variance);
 
         if(hasExact) {
@@ -630,5 +697,8 @@ namespace sens {
         }
 
         // runSensitivityAnalysis_TTSVD(function, ci, grids, weights, bondDim);
+
+        auto predictions = calculatePredictions(function, ci.tt, grids);
+        writePredictions(h5file, predictions);
     }
 }

@@ -25,7 +25,9 @@ namespace cli {
             ->check(CLI::PositiveNumber);
         app.add_option("--active", active, "The number of input parameters for the function (legendre and npoly)")
             ->check(CLI::PositiveNumber);
-
+        app.add_option("--npredictions", npredictions,
+                       "The number of off-grid function values to predict with the trained model")
+            ->check(CLI::PositiveNumber);
         app.add_option("--tols", targets, "Relative RMSE target tolerances")
             ->delimiter(',')
             ->allow_extra_args(false)
