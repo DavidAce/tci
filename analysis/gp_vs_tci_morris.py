@@ -29,7 +29,7 @@ from sklearn.exceptions import ConvergenceWarning
 from SALib.analyze.sobol import analyze as sobol_analyze
 from SALib.sample.sobol import sample as sobol_sample
 
-from h5loader import load_tci_predictions, prediction_errors
+from analysis.common.h5loader import load_tci_predictions, prediction_errors
 
 def parameters(active):
     """Exact alpha and beta in source/func/Morris2006.cpp."""

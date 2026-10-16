@@ -27,7 +27,7 @@ from sklearn.exceptions import ConvergenceWarning
 from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 
-from h5loader import load_tci_predictions, prediction_errors
+from analysis.common.h5loader import load_tci_predictions, prediction_errors
 
 def coefficients(dim):
     """Coefficients and normalization from CoupledPolynomial.cpp (0-based i,j,k)."""

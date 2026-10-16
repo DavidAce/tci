@@ -12,7 +12,6 @@ reproducibly seeded optimizer, no saved models, and a SciPy Sobol training desig
 Requires numpy, scipy, scikit-learn, SALib.
 """
 
-import argparse
 import math
 import subprocess
 import time
@@ -31,7 +30,8 @@ from SALib.sample.sobol import sample as sobol_sample
 from SALib.analyze.sobol import analyze as sobol_analyze
 from numba import njit
 
-from h5loader import load_tci_predictions, prediction_errors
+from common.parse import parse
+from common.h5loader import load_tci_predictions, prediction_errors
 
 A, B = 7.0, 0.1
 PROBLEM = {
@@ -162,38 +162,13 @@ def run_tci(args, tci_args):
 
 
 def main():
-    argv = sys.argv[1:]
-    if "--" in argv:
-        pos = argv.index("--")
-        python_args = argv[:pos]
-        tci_args = argv[pos+1:]
-    else:
-        python_args = argv
-        tci_args = []
+    args, python_args, tci_args = parse()
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tci", type=Path, help="Optional C++ TCI executable")
-    parser.add_argument('--gp-seed', type=int, default=12572601, help='Random seed for generating the GP training points.')
-    parser.add_argument('--gp-sizes', nargs='+', type=int, default=[128, 256, 512, 1024], help='Number of function evaluations used to training the GP model (powers of two).')
-    parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')
-    parser.add_argument('--gp-restarts', type=int, default=10, help='Number of additional attempts to optimize the GP kernel parameters.')
-    parser.add_argument('--alpha', type=float, default=1e-8, help='Small value added to the GP covariance diagonal for numerical stability.')
-    parser.add_argument("--tci-h5", type=str, default='tci/Ishigami.h5', help="TCI HDF5 file path (relative to this .py file) containing prediction points")
-    
-    args = parser.parse_args(python_args)
-    if tci_args and args.tci is None:
-        parser.error(f"TCI arguments passed without accompanying --tci=... : {tci_args}")
     if any(s == '--function' or s.startswith('--function=') for s in tci_args):
-        parser.error('C++ --function is automatically set to ishigami')
-
-
-    if args.alpha < 0 or args.gp_restarts < 0:
-        parser.error("alpha and gp-restarts must be nonnegative")
+        raise RuntimeError('C++ "--function" is automatically set to ishigami')
 
     run_tci(args, tci_args)
     run_gp(args)
-
-
 
 
 
