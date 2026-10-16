@@ -14,6 +14,7 @@ namespace cli {
         app.add_option("--function", functionName, "Test function")
             ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly"}));
         app.add_option("--quadrature", quadratureName, "Quadrature rule")->check(CLI::IsMember({"gk15", "gl", "cc"}));
+        app.add_option("--outdir", outdir, "Output directory for the results (HDF5 file)");
         app.add_option("--nnodes", nnodes, "Number of Nodes (discretization points) per parameter ")
             ->default_val(15)
             ->check(CLI::PositiveNumber);

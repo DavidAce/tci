@@ -4,6 +4,7 @@
 namespace cfg {
     inline std::string         functionName   = "ishigami";
     inline std::string         quadratureName = "gk15";
+    inline std::string         outdir         = "analysis/tci";
     inline int                 nnodes         = 15;
     inline int                 bondDim        = 8;
     inline int                 maxSweeps      = 20;
