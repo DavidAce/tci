@@ -22,6 +22,8 @@ def parse():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--function", type=str, default="ishigami",choices=["ishigami", "legendre", "morris"], help="Selects the test function")
     parser.add_argument("--tci", type=Path, help="Optional C++ TCI executable")
+    parser.add_argument('--dimension', type=int, default=8, help='Total number of input variables (for --function=[morris|legendre]).')
+    parser.add_argument('--active', type=int, default=5, help='Number of active variables that contribute to a sobol index (for --function=morris only)')
     parser.add_argument('--gp-seed', type=int, default=12572601, help='Random seed for generating the GP training points.')
     parser.add_argument('--gp-sizes', nargs='+', type=int, default=[128, 256, 512], help='Number of function evaluations used to training the GP model (powers of two).')
     parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')

@@ -1,34 +1,74 @@
 from numba import njit
 import numpy as np
 
+
 class ishigami:
-    A, B = 7.0, 0.1
-    problem = {
-        "num_vars": 3,
-        "names": ["x1", "x2", "x3"],
-        "bounds": [[-np.pi, np.pi]] * 3,
-    }
-    SOBOL_NAMES = ("S1", "S2", "S3", "ST1", "ST2", "ST3", "S1,3")
-    V1 = 0.5 * (1.0 + B * np.pi**4 / 5.0)**2
-    V2 = A**2 / 8.0
-    V13 = 8.0 * B**2 * np.pi**8 / 225.0
-    V = V1 + V2 + V13
-    EXACT = np.array([V1, V2, 0.0, V1 + V13, V2, V13, V13]) / V
+    def __init__(self, a=7.0, b=0.1):
+        self.A, self.B = a, b
+        self.name = "Ishigami"
+        self.dim = 3
+        self.problem = {
+            "num_vars": self.dim,
+            "names": ["x1", "x2", "x3"],
+            "bounds": [[-np.pi, np.pi]] * self.dim,
+        }
+        self.V1 = 0.5 * (1 + b * np.pi**4 / 5)**2
+        self.V2 = a**2 / 8
+        self.V13 = 8 * b**2 * np.pi**8 / 225
+        self.V = self.V1 + self.V2 + self.V13
 
+        self.exact_mean = a / 2
+        self.exact_variance = self.V
+
+        self.EXACT = np.array([
+            self.V1, self.V2, 0.0,
+            self.V1 + self.V13, self.V2,
+            self.V13, self.V13
+        ]) / self.V
+
+        self.SOBOL_NAMES = (
+            "S1", "S2", "S3",
+            "ST1", "ST2", "ST3", "S1,3"
+        )
+
+        self.sobol_pairs = [(0, 2)]
+        self.include_higher = False
+        self.error_slice = slice(None)
+        self.kernel_lower = 1e-5
+        self.kernel_upper = 1e5
+
+    def evaluate(self, x):
+        return self._evaluate(x, self.A, self.B)
+
+    @staticmethod
     @njit(cache=True)
-    def evaluate(x):
+    def _evaluate(x, a, b):
         x1, x2, x3 = np.asarray(x).T
-        return np.sin(x1) * (1.0 + B * x3**4) + A * np.sin(x2)**2
-
+        return np.sin(x1) * (1 + b * x3**4) + a * np.sin(x2)**2
 
 
 class morris2006:
-    dim = 8
-    problem = {
-        'num_vars': dim,
-        'names': [f'x{i+1}' for i in range(dim)],
-        'bounds': [[0.0, 1.0] for _ in range(dim)],
-    }
+    def __init__(self, dimension=8, active=5):
+        self.name = "Morris2006"
+        self.dim = dimension
+        self.active = active
+
+        self.problem = {
+            'num_vars': dim,
+            'names': [f'x{i+1}' for i in range(dim)],
+            'bounds': [[0.0, 1.0] for _ in range(dim)],
+        }
+
+        self.sobol_pairs = [
+            (i, j)
+            for i in range(self.dim)
+            for j in range(i + 1, self.dim)
+        ]
+        self.include_higher = True
+        self.error_slice = slice(None, -1)
+        self.kernel_lower = 1e-5
+        self.kernel_upper = 1e5
+
 
     @njit(cache=True)
     def morris2006(x, active, alpha, beta):
@@ -43,10 +83,8 @@ class morris2006:
         return result
 
 
-
 class legendrePoly3:
-    
-    def __coefficients(dim):
+    def __coefficients(self, dim):
         """Coefficients and normalization from LegendrePoly3.cpp (0-based i,j,k)."""
         if dim < 3:
             raise ValueError('LegendrePoly3 requires at least three variables')
@@ -69,9 +107,61 @@ class legendrePoly3:
         b *= np.sqrt(0.3 / np.sum(b**2))
         c *= np.sqrt(0.5 / np.sum(c**2))
         return a, b, c
-   
+
+    def __exact_sobol(self, a, b, c):
+        """Vector ordered as S_i, ST_i, S_ij (i<j), S_ij..."""
+        dim = len(a)
+        first = a**2
+        total = first.copy()
+        for i in range(dim):
+            for j in range(i + 1, dim):
+                s2 = b[i, j] ** 2
+                total[i] += s2
+                total[j] += s2
+                for k in range(j + 1, dim):
+                    s3 = c[i, j, k] ** 2
+                    total[i] += s3
+                    total[j] += s3
+                    total[k] += s3
+
+        ii, jj = np.triu_indices(dim, k=1)
+        second = b[ii, jj] ** 2
+        higher = 1.0 - first.sum() - second.sum()
+        assert np.isclose(higher, 0.5, atol=1e-12)
+        return np.r_[first, total, second, higher]
+
+    
+    def __init__(self, dim=8):
+        self.name = "LegendrePoly3"
+        self.dim = dim
+        self.active = -1
+
+        self.a, self.b, self.c = self.__coefficients(self.dim)
+        self.exact_sobol = self.__exact_sobol(self.a, self.b, self.c)
+        
+        self.problem = {
+            'num_vars': dim,
+            'names': [f'x{i+1}' for i in range(dim)],
+            'bounds': [[0.0, 1.0] for _ in range(dim)],
+        }
+
+        self.sobol_pairs = [
+            (i, j)
+            for i in range(self.dim)
+            for j in range(i + 1, self.dim)
+        ]
+        self.include_higher = True
+        self.error_slice = slice(None)
+        self.kernel_lower = 1e-5
+        self.kernel_upper = 1e5
+    
+
+    def evaluate(self, x):
+        return self._evaluate(x, self.a, self.b, self.c)
+
+    @staticmethod
     @njit(cache=True)
-    def evaluate(x, a, b, c):
+    def _evaluate(x, a, b, c):
         """Batched function evaluation: x.shape = (n_samples, dim), x in [0,1]."""
         n, dim = x.shape
         result = np.empty(n, dtype=np.float64)
