@@ -63,7 +63,7 @@
       }
     },
     {
-      "name": "release-conan",
+      "name": "Release",
       "displayName": "Release|march=native|LTO|conan package manager",
       "inherits": [
         "release",
@@ -72,7 +72,7 @@
       ]
     },
     {
-      "name": "debug-conan",
+      "name": "Debug",
       "displayName": "Debug|conan package manager",
       "inherits": [
         "debug",
@@ -83,21 +83,21 @@
   ],
   "buildPresets": [
     {
-      "name": "release-conan",
+      "name": "Release",
       "jobs": 8,
-      "configurePreset": "release-conan"
+      "configurePreset": "Release"
     },
     {
-      "name": "debug-conan",
+      "name": "Debug",
       "jobs": 8,
-      "configurePreset": "debug-conan"
+      "configurePreset": "Debug"
     }
   ],
   "testPresets": [
     {
-      "name": "release-conan",
+      "name": "Release",
       "displayName": "Release|conan package manager",
-      "configurePreset": "release-conan",
+      "configurePreset": "Release",
       "output": {
         "verbosity": "extra",
         "outputOnFailure": true
@@ -108,9 +108,9 @@
       }
     },
     {
-      "name": "debug-conan",
+      "name": "Debug",
       "displayName": "Debug|conan package manager",
-      "configurePreset": "debug-conan",
+      "configurePreset": "Debug",
       "output": {
         "verbosity": "extra",
         "outputOnFailure": true

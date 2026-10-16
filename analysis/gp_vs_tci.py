@@ -83,20 +83,42 @@ def evaluate_gp_sobol(gp, function, sobol_samples, seed, batch_size=8192):
     return values.mean(), values.var(), indices
 
 
-def compare_tci_gp(args, gp):
+def compare_tci_gp(args, gp_models, function):
     if args.tci_h5 is not None:
         dirname = os.path.dirname(__file__)
         filename = os.path.join(dirname, args.tci_h5)
         X_test, y_exact, y_tci = load_tci_predictions(filename)
 
-        y_gp = np.asarray(gp.predict(X_test)).reshape(-1)
+        if X_test.shape[1] != function.dim:
+            raise ValueError(f"HDF5 has {X_test.shape[1]} variables, but {function.name} expects {function.dim}")
+
         tci_error = prediction_errors(y_exact, y_tci)
-        gp_error = prediction_errors(y_exact, y_gp)
 
         print("\n=== Prediction accuracy ===")
-        print(f"{'method':<10} {'RMSE':>14} {'maxAbs':>14}")
-        print(f"{'TCI':<10} {tci_error['rmse']:>14.6e} {tci_error['maxAbs']:>14.6e}")
-        print(f"{'GP':<10} {gp_error['rmse']:>14.6e} {gp_error['maxAbs']:>14.6e}")
+        print(f"{'method':<10} {'nEval':>7} {'RMSE':>14} {'maxAbs':>14}")
+        print(f"{'TCI':<10} {'-':>7} {tci_error['rmse']:14.6e} {tci_error['maxAbs']:14.6e}")
+        for n, gp in gp_models:
+            y_gp = np.asarray(gp.predict(X_test)).reshape(-1)
+            gp_error = prediction_errors(y_exact, y_gp)
+            print(f"{'GP':<10} {n:7d} {gp_error['rmse']:>14.6e} {gp_error['maxAbs']:>14.6e}")
+
+
+def sobol_names(function):
+    dim = function.dim
+
+    names = (
+        [f"S{i+1}" for i in range(dim)]
+        + [f"ST{i+1}" for i in range(dim)]
+        + [
+            f"S{i+1},{j+1}"
+            for i, j in function.sobol_pairs
+        ]
+    )
+
+    if function.include_higher:
+        names.append("S_residual")
+
+    return names
 
 
 def run_gp(args, function):
@@ -120,14 +142,20 @@ def run_gp(args, function):
     y = function.evaluate(x)
 
     print(f"=== {function.name} / GP (dim={dim}) ===")
-    print(f"Training: scrambled Sobol | seed={args.gp_seed}")
-    print(f"GP: normalize_y=True | alpha={args.alpha:g} | restarts={args.gp_restarts}")
-    print(f"SALib: base={args.gp_sobol_samples} | predictions={(2*dim+2)*args.gp_sobol_samples}")
+    print(f"Training : scrambled Sobol | seed={args.gp_seed}")
+    print(f"GP       : normalize_y=True | alpha={args.alpha:g} | restarts={args.gp_restarts}")
+    print(f"SALib    : N={args.gp_sobol_samples} | predictions={(2*dim+2)*args.gp_sobol_samples}")
     print(f"{'method':<10} {'nEval':>7} {'RMSE':>12} {'maxDiff':>12} {'mean':>13} {'variance':>13} {'fit(s)':>9} {'sobol est.(s)':>13}")
 
+    models = []
+    previous_kernel = None
+
     for n in sizes:
-        kernel = ConstantKernel(1.0, (function.kernel_lower, function.kernel_upper)) * \
-            RBF(length_scale=1.0, length_scale_bounds=(1e-5, 1e5))
+        if previous_kernel is None:
+            kernel = ConstantKernel(1.0, (function.kernel_lower, function.kernel_upper)) * \
+                RBF(length_scale=1.0, length_scale_bounds=(1e-5, 1e5))
+        else:
+            kernel = previous_kernel
 
         gp = GaussianProcessRegressor(kernel=kernel,
                                       alpha=args.alpha,
@@ -145,6 +173,8 @@ def run_gp(args, function):
             gp.fit(x[:n], y[:n])
 
         fit_time = time.perf_counter() - start
+        previous_kernel = gp.kernel_
+        models.append((n, gp))
 
         start = time.perf_counter()
 
@@ -157,28 +187,50 @@ def run_gp(args, function):
         sobol_time = time.perf_counter() - start
 
         # Preserve each benchmark's original RMSE convention.
-        selected = function.error_slice
-        delta = (
-            indices[selected] - function.EXACT[selected]
-        )
+        exact = function.exact_sobol
 
-        rmse = float(np.sqrt(np.mean(delta**2)))
-        max_diff = float(np.max(np.abs(delta)))
+        if exact is not None:
+            selected = function.error_slice
+            delta = indices[selected] - exact[selected]
 
-        print(f"{'GP':<10} {n:7d} {rmse:12.4e} {max_diff:12.4e} "
-              f"{mu:13.6e} {var:13.6e} {fit_time:9.2e} {sobol_time:13.2e}",
-              flush=True)
+            rmse = float(np.sqrt(np.mean(delta**2)))
+            max_diff = float(np.max(np.abs(delta)))
+        else:
+            rmse = None
+            max_diff = None
+
+        rmse_str = f"{rmse:12.4e}" if rmse is not None else f"{'n/a':>12}"
+        max_str = f"{max_diff:12.4e}" if max_diff is not None else f"{'n/a':>12}"
+
+        print(f"{'GP':<10} {n:7d} "
+              f"{rmse_str} {max_str} "
+              f"{mu:13.6e} {var:13.6e} "
+              f"{fit_time:9.2e} {sobol_time:13.2e}",
+              flush=True
+              )
 
     print("\nFinal GP Sobol indices:")
-    print(f"{'index':<10} {'estimated':>14} {'exact':>14} {'absError':>12}"
-          )
 
-    for name, estimated, exact in zip(
-        function.SOBOL_NAMES, indices, function.EXACT
-    ):
-        print(f"{name:<10} {estimated:14.8f} {exact:14.8f} {abs(estimated-exact):12.3e}")
+    exact = function.exact_sobol
+    names = sobol_names(function)
 
-    return gp
+    if exact is not None:
+        if len(indices) != len(exact):
+            raise ValueError("Sobol reference size mismatch")
+
+        print(f"{'index':<10} {'estimated':>14} {'exact':>14} {'error':>14}")
+
+        for name, estimated, reference in zip(names, indices, exact):
+            diff = estimated - reference
+            print(f"{name:<10} {estimated:14.8f} {reference:14.8f} {diff:14.3e}")
+
+    else:
+        print(f"{'index':<10} {'estimated':>14}")
+
+        for name, estimated in zip(names, indices):
+            print(f"{name:<10} {estimated:14.8f}")
+
+    return models
 
 
 def run_tci(args, tci_args):
@@ -203,9 +255,9 @@ def main():
     function = constructors[args.function]()
 
     run_tci(args, tci_args)
-    gp = run_gp(args, function)
+    gp_models = run_gp(args, function)
 
-    compare_tci_gp(args, gp)
+    compare_tci_gp(args, gp_models, function)
 
 
 if __name__ == "__main__":

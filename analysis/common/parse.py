@@ -43,7 +43,7 @@ def parse():
     if args.alpha < 0 or args.gp_restarts < 0:
         parser.error("alpha and gp-restarts must be nonnegative")
     
-    if args.tci_h5 is None:
+    if Path.exists(args.tci) and args.tci_h5 is None:
         args.tci_h5 = h5files_tci[args.function]
     
     return args, python_args, tci_args

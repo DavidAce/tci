@@ -20,7 +20,7 @@ By default, the direct dependencies are:
 - [fmt](https://github.com/fmtlib/fmt)  For string formatting
 - [spdlog](https://github.com/gabime/spdlog)  For logging
 
-These dependencies are installed automatically when using the bundled CMake Presets `release-conan` or `debug-conan`.
+These dependencies are installed automatically when using the bundled CMake Presets `Release` or `Debug`.
 
 Note that `h5pp` itself has the same dependencies, so they should already be present if `h5pp` was installed previously.
 
@@ -48,14 +48,14 @@ Open a terminal and run
     -------------------------------------------------------
     >    Available configure presets:
     >
-    >      "release-conan" - Release|conan package manager
-    >      "debug-conan"   - Debug|conan package manager
+    >      "Release" - Release|conan package manager
+    >      "Debug"   - Debug|conan package manager
 
 #### Step 3: Configure and build
 Select a preset listed in the previous step, and run
 
-    cmake --preset=release-conan
-    cmake --build --preset=release-conan
+    cmake --preset=Release
+    cmake --build --preset=Release
 
-These commands configure the project and builds the executable at `./build/release-conan/tci`
+These commands configure the project and builds the executable at `./build/Release/tci`
 

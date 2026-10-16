@@ -19,8 +19,7 @@ class ishigami:
 
         self.exact_mean = a / 2
         self.exact_variance = self.V
-
-        self.EXACT = np.array([
+        self.exact_sobol = np.array([
             self.V1, self.V2, 0.0,
             self.V1 + self.V13, self.V2,
             self.V13, self.V13
@@ -48,16 +47,44 @@ class ishigami:
 
 
 class morris2006:
-    def __init__(self, dimension=8, active=5):
+
+    def _exact_sobol(self, dim, active, alpha, beta):
+        """Order: S_i, ST_i, S_ij (lexicographic i<j); residual S_ijk..."""
+        variance = 1.05 * active
+        first = np.zeros(dim)
+        total = np.zeros(dim)
+        first[:active] = 1.0 / variance
+        total[:active] = 1.1 / variance
+
+        ii, jj = np.triu_indices(dim, k=1)
+        second = np.where(
+            (ii < active) & (jj < active),
+            1.0 / (10.0 * (active - 1) * variance),
+            0.0,
+        )
+        residual = 1.0 - first.sum() - second.sum()
+        assert abs(residual) < 1e-12
+        mean = alpha * (active / 2.0) + beta * active * (active - 1) / 8.0
+        return mean, variance, np.r_[first, total, second, 0.0]
+
+    def __init__(self, dim=8, active=5):
+        if not 2 <= active <= dim:
+            raise ValueError("Require 2 <= active <= dimension")
+
         self.name = "Morris2006"
-        self.dim = dimension
+        self.dim = dim
         self.active = active
+
+        self.alpha = (np.sqrt(12.0) - 6.0 * np.sqrt(0.1 * (active - 1)))
+        self.beta = 12.0 / np.sqrt(10.0 * (active - 1))
 
         self.problem = {
             'num_vars': dim,
             'names': [f'x{i+1}' for i in range(dim)],
             'bounds': [[0.0, 1.0] for _ in range(dim)],
         }
+
+        self.mean, self.variance, self.exact_sobol = self._exact_sobol(self.dim, self.active, self.alpha, self.beta)
 
         self.sobol_pairs = [
             (i, j)
@@ -67,11 +94,14 @@ class morris2006:
         self.include_higher = True
         self.error_slice = slice(None, -1)
         self.kernel_lower = 1e-5
-        self.kernel_upper = 1e5
+        self.kernel_upper = 1e6
 
+    def evaluate(self, x):
+        return self._evaluate(x, self.active, self.alpha, self.beta)
 
+    @staticmethod
     @njit(cache=True)
-    def morris2006(x, active, alpha, beta):
+    def _evaluate(x, active, alpha, beta):
         result = np.empty(x.shape[0], dtype=np.float64)
         for row in range(x.shape[0]):
             s = 0.0
@@ -84,7 +114,7 @@ class morris2006:
 
 
 class legendrePoly3:
-    def __coefficients(self, dim):
+    def _coefficients(self, dim):
         """Coefficients and normalization from LegendrePoly3.cpp (0-based i,j,k)."""
         if dim < 3:
             raise ValueError('LegendrePoly3 requires at least three variables')
@@ -108,7 +138,7 @@ class legendrePoly3:
         c *= np.sqrt(0.5 / np.sum(c**2))
         return a, b, c
 
-    def __exact_sobol(self, a, b, c):
+    def _exact_sobol(self, a, b, c):
         """Vector ordered as S_i, ST_i, S_ij (i<j), S_ij..."""
         dim = len(a)
         first = a**2
@@ -130,15 +160,17 @@ class legendrePoly3:
         assert np.isclose(higher, 0.5, atol=1e-12)
         return np.r_[first, total, second, higher]
 
-    
     def __init__(self, dim=8):
         self.name = "LegendrePoly3"
         self.dim = dim
         self.active = -1
 
-        self.a, self.b, self.c = self.__coefficients(self.dim)
-        self.exact_sobol = self.__exact_sobol(self.a, self.b, self.c)
-        
+        self.a, self.b, self.c = self._coefficients(self.dim)
+
+        self.exact_mean = 1.0
+        self.exact_variance = 1.0
+        self.exact_sobol = self._exact_sobol(self.a, self.b, self.c)
+
         self.problem = {
             'num_vars': dim,
             'names': [f'x{i+1}' for i in range(dim)],
@@ -154,7 +186,6 @@ class legendrePoly3:
         self.error_slice = slice(None)
         self.kernel_lower = 1e-5
         self.kernel_upper = 1e5
-    
 
     def evaluate(self, x):
         return self._evaluate(x, self.a, self.b, self.c)
