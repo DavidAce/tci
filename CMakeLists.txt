@@ -39,7 +39,9 @@ add_executable(TCI
         source/cli/cli.cpp
         source/interp/interp.cpp
         source/io/io.cpp
-        )
+        source/info/sil.h
+        source/info/tmp.h
+)
 
 target_include_directories(TCI PRIVATE source)
 
