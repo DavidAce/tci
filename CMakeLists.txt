@@ -31,6 +31,7 @@ add_executable(TCI
         source/func/Morris2006.cpp
         source/func/LegendrePoly3.cpp
         source/func/NonlinearPolynomial.cpp
+        source/func/PermutedFunction.cpp
         source/sens/sens.cpp
         source/quad/ClenshawCurtis.cpp
         source/quad/GaussKronrod.cpp
@@ -39,8 +40,6 @@ add_executable(TCI
         source/cli/cli.cpp
         source/interp/interp.cpp
         source/io/io.cpp
-        source/info/sil.h
-        source/info/tmp.h
 )
 
 target_include_directories(TCI PRIVATE source)

@@ -84,7 +84,7 @@ sens::util::SobolReference LegendrePoly3::exactSobolIndices() const {
 
             for(int k = j + 1; k < dim_; ++k) {
                 const double Vijk = c(i, j, k) * c(i, j, k);
-                ref.third.push_back({i, j, k, Vijk});
+                // ref.third.push_back({i, j, k, Vijk});
                 ref.total[i] += Vijk;
                 ref.total[j] += Vijk;
                 ref.total[k] += Vijk;

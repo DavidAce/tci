@@ -1,5 +1,5 @@
 #pragma once
-#include "Base.hpp"
+#include "BaseFunction.hpp"
 #include "sens/util.h"
 // ------------------------------------------------------------
 // Ishigami
@@ -7,8 +7,8 @@
 
 class Ishigami final : public BaseFunction {
     public:
-    static constexpr double a  = 7.0;
-    static constexpr double b  = 0.1;
+    static constexpr double a = 7.0;
+    static constexpr double b = 0.1;
 
     std::string_view           name() const override;
     int                        dimension() const override;

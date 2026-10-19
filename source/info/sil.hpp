@@ -196,4 +196,4 @@ namespace sens::sil {
             throw std::invalid_argument("writeSIL: expected nonempty square matrix");
         file.writeDataset(lattice, path);
     }
-} // namespace sens::sil
+} 

@@ -29,6 +29,9 @@ namespace cli {
         app.add_option("--npredictions", npredictions,
                        "The number of off-grid function values to predict with the trained model")
             ->check(CLI::PositiveNumber);
+        app.add_option("--index-order", indexOrder, "TCI parameter order (0-based permutation)")
+            ->delimiter(',')
+            ->allow_extra_args(false);
         app.add_option("--tols", targets, "Relative RMSE target tolerances")
             ->delimiter(',')
             ->allow_extra_args(false)

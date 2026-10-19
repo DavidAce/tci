@@ -1,6 +1,7 @@
 #include "sens.hpp"
 #include "cfg/cfg.hpp"
-#include "func/Base.hpp"
+#include "func/BaseFunction.hpp"
+#include "info/sil.hpp"
 #include "interp/interp.hpp"
 #include "quad/quadrature.hpp"
 #include "rnd/rnd.hpp"
@@ -143,7 +144,8 @@ namespace sens {
     SobolResult calculateSobol(const TensorTrain &tt, const std::vector<std::vector<double>> &weights,
                                const Statistics &fs, const SobolReference &sobolRef) {
         std::vector<SobolIndex> indices;
-        indices.reserve(sobolRef.first.size() + sobolRef.second.size() + sobolRef.third.size());
+        // indices.reserve(sobolRef.first.size() + sobolRef.second.size() + sobolRef.third.size());
+        indices.reserve(sobolRef.first.size() + sobolRef.second.size());
 
         constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -191,14 +193,14 @@ namespace sens {
             for(int i = 0; i < dim; ++i)
                 addIndex(indices, fmt::format("ST{}", i + 1), total[i], hasExact ? sobolRef.total[i] : nan);
         }
-        auto pairs   = sobolRef.second;
-        auto triples = sobolRef.third;
+        auto pairs = sobolRef.second;
+        // auto triples = sobolRef.third;
 
         if(!hasExact) {
             for(int i = 0; i < dim; ++i) {
                 for(int j = i + 1; j < dim; ++j) {
                     pairs.push_back({i, j, nan});
-                    for(int k = j + 1; k < dim; ++k) triples.push_back({i, j, k, nan});
+                    // for(int k = j + 1; k < dim; ++k) triples.push_back({i, j, k, nan});
                 }
             }
         }
@@ -226,21 +228,21 @@ namespace sens {
             addIndex(indices, fmt::format("S{},{}", pair.i + 1, pair.j + 1), Vij / variance, pair.value);
         }
 
-        // Third-order indices.
-        for(const auto &triple : triples) {
-            const int i = triple.i;
-            const int j = triple.j;
-            const int k = triple.k;
+        // // Third-order indices.
+        // for(const auto &triple : triples) {
+        //     const int i = triple.i;
+        //     const int j = triple.j;
+        //     const int k = triple.k;
 
-            std::vector<bool> mask(dim, true);
-            mask[i] = false;
-            mask[j] = false;
-            mask[k] = false;
+        //     std::vector<bool> mask(dim, true);
+        //     mask[i] = false;
+        //     mask[j] = false;
+        //     mask[k] = false;
 
-            const double Vijk = conditional_mean_square(tt, weights, mask) - mean2 - V1[i] - V1[j] - V1[k] -
-                                secondVariance(i, j) - secondVariance(i, k) - secondVariance(j, k);
-            addIndex(indices, fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / variance, triple.value);
-        }
+        //     const double Vijk = conditional_mean_square(tt, weights, mask) - mean2 - V1[i] - V1[j] - V1[k] -
+        //                         secondVariance(i, j) - secondVariance(i, k) - secondVariance(j, k);
+        //     addIndex(indices, fmt::format("S{},{},{}", i + 1, j + 1, k + 1), Vijk / variance, triple.value);
+        // }
 
         if(hasExact) {
             double sum2 = 0.0;
@@ -732,5 +734,8 @@ namespace sens {
 
         auto predictions = calculatePredictions(function, ci.tt, grids);
         writePredictions(h5file, predictions);
+
+        auto lattice  = sil::calculateSIL(ci.tt, weights);
+        sil::writeSIL(h5file, lattice);
     }
 }

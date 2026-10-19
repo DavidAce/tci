@@ -20,6 +20,7 @@ import os
 import warnings
 
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 import numpy as np
 from scipy.stats import qmc
@@ -33,7 +34,7 @@ from numba import njit
 from common.parse import parse
 from common.h5loader import load_tci_n_eval, load_tci_predictions, prediction_errors
 from common.functions import ishigami, morris2006, legendrePoly3
-
+from common.plot_info_lattice import read_info_lattice, plot_info_lattice
 
 def evaluate_gp_sobol(gp, function, sobol_samples, seed, batch_size=8192):
     problem = function.problem
@@ -51,7 +52,7 @@ def evaluate_gp_sobol(gp, function, sobol_samples, seed, batch_size=8192):
     result = sobol_analyze(
         problem, y,
         calc_second_order=True,
-        num_resamples=100,
+        num_resamples=2,
         seed=seed,
         print_to_console=False,
         parallel=False,
@@ -124,16 +125,16 @@ def sobol_names(function):
 
 def run_gp(args, function):
     dim = function.dim
-    sizes = args.gp_sizes
+    nevals = args.gp_nevals
 
-    if any(n < 2 or n & (n - 1) for n in sizes):
-        raise ValueError("GP training sizes must be powers of two >= 2")
+    if any(n < 2 or n & (n - 1) for n in nevals):
+        raise ValueError("GP training nevals must be powers of two >= 2")
 
     if (args.gp_sobol_samples < 2 or args.gp_sobol_samples & (args.gp_sobol_samples - 1)):
         raise ValueError("--gp-sobol-samples must be a power of two >= 2")
 
     # Generate the same nested scrambled Sobol design.
-    u = qmc.Sobol(d=dim, scramble=True, seed=args.gp_seed).random_base2(m=max(sizes).bit_length() - 1)
+    u = qmc.Sobol(d=dim, scramble=True, seed=args.gp_seed).random_base2(m=max(nevals).bit_length() - 1)
 
     # Transform to the physical domain of this function.
     bounds = np.asarray(function.problem["bounds"])
@@ -151,10 +152,10 @@ def run_gp(args, function):
     models = []
     previous_kernel = None
 
-    for n in sizes:
+    for n in nevals:
         if previous_kernel is None:
             kernel = ConstantKernel(1.0, (function.kernel_lower, function.kernel_upper)) * \
-                RBF(length_scale=1.0, length_scale_bounds=(1e-5, 1e5))
+                RBF(length_scale=np.ones(function.dim), length_scale_bounds=(1e-5, 1e5))
         else:
             kernel = previous_kernel
 
@@ -170,6 +171,10 @@ def run_gp(args, function):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore",
                                     message=r"lbfgs failed to converge.*",
+                                    category=ConvergenceWarning)
+            warnings.filterwarnings("ignore",
+                                    message=r"The optimal value found for dimension \d+ of parameter k2__length_scale"
+                                    " is close to the specified upper bound",
                                     category=ConvergenceWarning)
             gp.fit(x[:n], y[:n])
 
@@ -188,11 +193,9 @@ def run_gp(args, function):
         sobol_time = time.perf_counter() - start
 
         # Preserve each benchmark's original RMSE convention.
-        exact = function.exact_sobol
-
-        if exact is not None:
+        if function.exact_sobol is not None:
             selected = function.error_slice
-            delta = indices[selected] - exact[selected]
+            delta = indices[selected] - function.exact_sobol[selected]
 
             rmse = float(np.sqrt(np.mean(delta**2)))
             max_diff = float(np.max(np.abs(delta)))
@@ -231,6 +234,29 @@ def run_gp(args, function):
         for name, estimated in zip(names, indices):
             print(f"{name:<10} {estimated:14.8f}")
 
+    class ExactPredictor:
+        def predict(self, x):
+            return function.evaluate(x)
+
+    _, _, indices_direct = evaluate_gp_sobol(
+        ExactPredictor(),
+        function,
+        args.gp_sobol_samples,
+        args.gp_seed,
+    )
+
+    selected = function.error_slice
+    diff = indices_direct[selected] - function.exact_sobol[selected]
+
+    print("Direct SALib RMSE:", np.sqrt(np.mean(diff**2)))
+    print("Direct SALib maxDiff:", np.max(np.abs(diff)))
+
+    selected = function.error_slice
+    delta = indices[selected] - indices_direct[selected]
+
+    print("GP vs direct SALib RMSE:", np.sqrt(np.mean(delta**2)))
+    print("GP vs direct SALib maxDiff:", np.max(np.abs(delta)))
+
     return models
 
 
@@ -255,10 +281,22 @@ def main():
 
     function = constructors[args.function]()
 
+    dirname = os.path.dirname(__file__)
+    filename = os.path.join(dirname, args.tci_h5)
+    il = read_info_lattice(filename, "tci/sil")
+    fig, _ = plot_info_lattice(il, logarithmic=False, vmin=1e-5, vmax=1.0, cmap="Greens", size=280)
+
+    plt.show()
+
     run_tci(args, tci_args)
     gp_models = run_gp(args, function)
 
     compare_tci_gp(args, gp_models, function)
+
+    exit(0)
+    
+
+
 
 
 if __name__ == "__main__":

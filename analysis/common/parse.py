@@ -25,7 +25,7 @@ def parse():
     parser.add_argument('--dimension', type=int, default=8, help='Total number of input variables (for --function=[morris|legendre]).')
     parser.add_argument('--active', type=int, default=5, help='Number of active variables that contribute to a sobol index (for --function=morris only)')
     parser.add_argument('--gp-seed', type=int, default=12572601, help='Random seed for generating the GP training points.')
-    parser.add_argument('--gp-sizes', nargs='+', type=int, default=[128, 256, 512], help='Number of function evaluations used to training the GP model (powers of two).')
+    parser.add_argument('--gp-nevals', nargs='+', type=int, default=[128, 256, 512], help='Number of function evaluations used to training the GP model (powers of two).')
     parser.add_argument('--gp-sobol-samples', type=int, default=2**14, help='Number of sample pairs used to estimate Sobol indices from the GP (powers of two).')
     parser.add_argument('--gp-restarts', type=int, default=10, help='Number of additional attempts to optimize the GP kernel parameters.')
     parser.add_argument('--alpha', type=float, default=1e-8, help='Small value added to the GP covariance diagonal for numerical stability.')
