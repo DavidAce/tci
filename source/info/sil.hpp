@@ -186,7 +186,7 @@ namespace sens::sil {
 
         if(!(variance > 0.0L) || !std::isfinite(variance))
             throw std::runtime_error("calculateSIL: zero or nonfinite output variance");
-        lattice *= 1.0 / static_cast<double>(variance);
+        lattice *= 1.0 / variance;
         return lattice;
     }
 
@@ -196,4 +196,4 @@ namespace sens::sil {
             throw std::invalid_argument("writeSIL: expected nonempty square matrix");
         file.writeDataset(lattice, path);
     }
-} 
+}

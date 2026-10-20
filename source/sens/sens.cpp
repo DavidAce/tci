@@ -152,23 +152,6 @@ namespace sens {
         return true;
     }
 
-    double maximumSobolChange(const SobolResult &current, const SobolResult &previous) {
-        if(current.sobolIndices.size() != previous.sobolIndices.size()) return std::numeric_limits<double>::quiet_NaN();
-        double delta = 0;
-        for(std::size_t i = 0; i < current.sobolIndices.size(); ++i)
-            delta = std::max(delta, std::abs(current.sobolIndices[i].estimated - previous.sobolIndices[i].estimated));
-        return delta;
-    }
-
-    void printSweepHeader(const BaseFunction &function, bool hasExact) {
-        fmt::print("\n=== {} (dim={}) ===\n", function.name(), function.dimension());
-        if(hasExact)
-            fmt::print("{:<11} {:>6} {:>8} {:>12} {:>12}\n", "method", "sweeps", "nEval", "RMSE", "maxDiff");
-        else
-            fmt::print("{:<11} {:>6} {:>8} {:>14} {:>14} {:>12}\n", "method", "sweeps", "nEval", "mean", "variance",
-                       "maxDeltaS");
-    }
-
     void recordTargetEvaluations(TargetProgress &progress, const std::vector<double> &targets, const Status &status) {
         if(!std::isfinite(status.sobolResult.rmse)) return;
         for(std::size_t i = 0; i < targets.size(); ++i)
@@ -180,7 +163,7 @@ namespace sens {
                               const SobolReference &reference, const std::vector<double> &targets,
                               TargetProgress &progress) {
         status.sweeps      = ci.cIter - 1; // xfac constructs the TT with one initial half-sweep.
-        status.nEval       = ci.f.nEval();
+        status.nEval       = static_cast<int>(ci.f.nEval());
         status.bondDims    = bondDimensions(ci);
         status.statistics  = calculateStatistics(ci.tt, weights);
         status.sobolResult = calculateSobol(ci.tt, weights, status.statistics, reference);
@@ -316,11 +299,11 @@ namespace sens {
         FunctionEvaluator evaluate{function};
         TensorCI          ci(evaluate, grids, param);
 
-        const auto     gridProbes = sampleGridProbes(function, grids, AnalysisSettings::nGridProbes);
-        const auto     control    = hasExactSobolIndices(reference, function.dimension())
-                                        ? ConvergenceData{}
-                                        : sampleOffGridControlPoints(function, grids, AnalysisSettings::nControlPoints);
-        TargetProgress progress(relTolTargets.size());
+        const auto          gridProbes = sampleGridProbes(function, grids, AnalysisSettings::nGridProbes);
+        const auto          control    = hasExactSobolIndices(reference, function.dimension())
+                                             ? ConvergenceData{}
+                                             : sampleOffGridControlPoints(function, grids, AnalysisSettings::nControlPoints);
+        TargetProgress      progress(relTolTargets.size());
         std::vector<Status> statusLog;
         printSweepHeader(function, hasExactSobolIndices(reference, function.dimension()));
         runTCISweeps(ci, grids, weights, reference, control, gridProbes, relTolTargets, maxSweeps, statusLog, progress);

@@ -2,7 +2,6 @@
 
 #include "sobol.hpp"
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -41,4 +40,4 @@ namespace sens {
         std::optional<OffGridSamples> offGrid;
     };
 
-} // namespace sens
+}

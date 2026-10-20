@@ -25,7 +25,7 @@ endif()
 
 ### Add all source files
 add_executable(TCI
-        source/main.cpp 
+        source/main.cpp
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
         source/func/LegendrePoly3.cpp
@@ -34,9 +34,12 @@ add_executable(TCI
         source/sens/file.cpp
         source/sens/sens.cpp
         source/sens/sobol.cpp
+        source/sens/grid.cpp
+        source/sens/print.cpp
         source/quad/ClenshawCurtis.cpp
         source/quad/GaussKronrod.cpp
         source/quad/GaussLegendre.cpp
+        source/quad/quadrature.cpp
         source/rnd/rnd.cpp
         source/cli/cli.cpp
         source/interp/interp.cpp
