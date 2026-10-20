@@ -1,6 +1,5 @@
 #pragma once
-#include "BaseFunction.hpp"
-
+#include "PermutedFunction.hpp"
 
 /*!
  * Third-order Legendre polynomial.
@@ -43,21 +42,20 @@
  * [2] PolynomialChaosReporter
  *     https://mooseframework.inl.gov/source/reporters/PolynomialChaosReporter.html
  */
-class LegendrePoly3 final : public BaseFunction {
-public:
-    explicit LegendrePoly3(int dimension = 8);
-
+class LegendrePoly3 final : public PermutedFunction {
+    public:
+    explicit LegendrePoly3(int dimension, std::vector<int> permutation = {});
     std::string_view name() const override;
-    int dimension() const override;
-    std::pair<double, double> domain(int) const override;
-    std::vector<int> initialPivot() const override;
-    double evaluate(const std::vector<double>& x) const override;
-    sens::util::SobolReference exactSobolIndices() const override;
 
-private:
-    int dim_;
+    protected:
+    std::pair<double, double>  domainOriginal(int) const override;
+    std::vector<int>           initialPivotOriginal() const override;
+    double                     evaluateOriginal(const std::vector<double> &x) const override;
+    sens::util::SobolReference exactSobolIndicesOriginal() const override;
+
+    private:
     std::vector<double> a_, b_, c_;
 
-    double b(int i, int j) const { return b_[i * dim_ + j]; }
-    double c(int i, int j, int k) const { return c_[(i * dim_ + j) * dim_ + k]; }
+    double b(int i, int j) const;
+    double c(int i, int j, int k) const;
 };

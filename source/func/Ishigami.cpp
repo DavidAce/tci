@@ -5,18 +5,19 @@
 using namespace sens::util;
 static constexpr double pi = std::numbers::pi;
 
+Ishigami::Ishigami(std::vector<int> permutation) : PermutedFunction(3, std::move(permutation)) {}
+
 std::string_view Ishigami::name() const { return "Ishigami"; }
-int              Ishigami::dimension() const { return 3; }
 
-std::pair<double, double> Ishigami::domain(int) const { return {-pi, pi}; }
+std::pair<double, double> Ishigami::domainOriginal(int) const { return {-pi, pi}; }
 
-std::vector<int> Ishigami::initialPivot() const { return {5, 9, 5}; }
+std::vector<int> Ishigami::initialPivotOriginal() const { return {5, 9, 5}; }
 
-double Ishigami::evaluate(const std::vector<double> &x) const {
+double Ishigami::evaluateOriginal(const std::vector<double> &x) const {
     return std::sin(x[0]) * (1.0 + b * std::pow(x[2], 4)) + a * std::pow(std::sin(x[1]), 2);
 }
 
-SobolReference Ishigami::exactSobolIndices() const {
+SobolReference Ishigami::exactSobolIndicesOriginal() const {
     const double p4 = std::pow(pi, 4);
     const double p8 = p4 * p4;
 

@@ -1,9 +1,8 @@
 #pragma once
-#include "BaseFunction.hpp"
+#include "PermutedFunction.hpp"
 #include "sens/util.h"
 #include <string_view>
 #include <vector>
-
 
 /*!
  * Morris-Moore-McKay (2006) test function.
@@ -41,18 +40,19 @@
  * [2] https://www.sfu.ca/~ssurjano/morretal06.html
  * [3] https://uqtestfuns.readthedocs.io/en/stable/test-functions/morris-m.html
  */
-class Morris2006 final : public BaseFunction {
+class Morris2006 final : public PermutedFunction {
     private:
     int dim_;
     int p_;
 
     public:
-    Morris2006(int dimension, int active);
+    Morris2006(int dimension, int active, std::vector<int> permutation);
 
-    std::string_view           name() const override;
-    int                        dimension() const override;
-    std::pair<double, double>  domain(int) const override;
-    double                     evaluate(const std::vector<double> &x) const override;
-    sens::util::SobolReference exactSobolIndices() const override;
-    std::vector<int>           initialPivot() const override;
+    std::string_view name() const override;
+
+    protected:
+    std::pair<double, double>  domainOriginal(int) const override;
+    double                     evaluateOriginal(const std::vector<double> &x) const override;
+    sens::util::SobolReference exactSobolIndicesOriginal() const override;
+    std::vector<int>           initialPivotOriginal() const override;
 };

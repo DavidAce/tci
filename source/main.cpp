@@ -29,19 +29,19 @@ int main(int argc, char **argv) {
 
     auto t_start = std::chrono::steady_clock::now();
     if(cfg::functionNameHas("ishigami")) {
-        Ishigami function;
+        Ishigami function(cfg::permutation);
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("morris")) {
-        Morris2006 function(dimension, active);
+        Morris2006 function(dimension, active, cfg::permutation);
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("legendre")) {
-        LegendrePoly3 function(dimension);
+        LegendrePoly3 function(dimension,cfg::permutation);
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("npoly")) {
-        NonlinearPolynomial function(16, 0.1);
+        NonlinearPolynomial function(16, 0.1, cfg::permutation);
         sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature);
     }
     auto t_end     = std::chrono::steady_clock::now();

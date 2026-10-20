@@ -286,12 +286,12 @@ def main():
     il = read_info_lattice(filename, "tci/sil")
     fig, _ = plot_info_lattice(il, logarithmic=False, vmin=1e-5, vmax=1.0, cmap="Greens", size=280)
 
-    plt.show()
 
     run_tci(args, tci_args)
     gp_models = run_gp(args, function)
 
     compare_tci_gp(args, gp_models, function)
+    plt.show()
 
     exit(0)
     
