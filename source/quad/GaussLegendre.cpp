@@ -3,7 +3,7 @@
 #include <numbers>
 #include <stdexcept>
 
-namespace quadrature {
+namespace sens::quadrature {
     namespace {
 
         struct PolynomialAndDerivative {

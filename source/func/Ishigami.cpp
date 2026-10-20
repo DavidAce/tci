@@ -1,8 +1,9 @@
 #include "Ishigami.hpp"
+#include "sens/sobol.hpp"
 #include <cmath>
 #include <numbers>
 
-using namespace sens::util;
+using namespace sens;
 static constexpr double pi = std::numbers::pi;
 
 Ishigami::Ishigami(std::vector<int> permutation) : PermutedFunction(3, std::move(permutation)) {}

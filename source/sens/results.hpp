@@ -1,20 +1,19 @@
 #pragma once
 
-#include "sens/util.h"
+#include "sobol.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
-
 namespace sens {
 
     struct SweepRecord {
-        int                        halfSweeps  = 0;
-        std::uint64_t              nEval       = 0;
-        double                     mean        = 0.0;
-        double                     variance    = 0.0;
-        double                     sobolRMSE   = 0.0;
+        int                        halfSweeps   = 0;
+        std::uint64_t              nEval        = 0;
+        double                     mean         = 0.0;
+        double                     variance     = 0.0;
+        double                     sobolRMSE    = 0.0;
         double                     sobolmaxDiff = 0.0;
         std::vector<std::uint64_t> bondDimensions;
     };
@@ -32,8 +31,8 @@ namespace sens {
         std::string                   functionName;
         int                           dimension = 0;
         std::vector<SweepRecord>      history;
-        util::SobolResult       firstStableSobol;
-        util::SobolResult       finalSobol;
+        SobolResult                   firstStableSobol;
+        SobolResult                   finalSobol;
         std::uint64_t                 firstStableNEval      = 0;
         std::uint64_t                 finalNEval            = 0;
         int                           firstStableHalfSweeps = 0;

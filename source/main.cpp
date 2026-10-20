@@ -20,6 +20,8 @@ int main(int argc, char **argv) {
     rnd::seed(cfg::seed);
 
     using namespace cfg;
+    using namespace sens;
+    
     auto makeQuadrature = [&](double lo, double hi) {
         if(cfg::quadratureNameHas("gk15")) return quadrature::gaussKronrod15(lo, hi);
         if(cfg::quadratureNameHas("gl")) return quadrature::gaussLegendre(nnodes, lo, hi);
@@ -37,11 +39,11 @@ int main(int argc, char **argv) {
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("legendre")) {
-        LegendrePoly3 function(dimension,cfg::permutation);
+        LegendrePoly3 function(dimension, cfg::permutation);
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
     }
     if(cfg::functionNameHas("npoly")) {
-        NonlinearPolynomial function(16, 0.1, cfg::permutation);
+        NonlinearPolynomial function(8, 0.1, cfg::permutation);
         sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature);
     }
     auto t_end     = std::chrono::steady_clock::now();

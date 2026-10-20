@@ -47,6 +47,43 @@ class ishigami:
 
 
 class morris2006:
+    '''
+    Morris-Moore-McKay (2006) test function.
+
+    A polynomial sensitivity-analysis benchmark with a configurable
+    number of active and inactive inputs.
+
+    Let dimension = active+inactive = M+p
+
+    Reference configuration:
+        Original paper: M=30, p=2,...,10
+        UQTestFuns example: M=6, p=5
+        Current project default: M=8, p=5
+    
+    For p=5:
+        Variance = 5.25
+        S_i  = 1/5.25   for active inputs
+        ST_i = 1.1/5.25 for active inputs
+        S_ij = 0.025/5.25 for active pairs
+        All indices involving inactive variables are zero.
+
+    All active variables have equal first-order Sobol contributions
+    and weak pairwise interactions. There are no higher-order terms.
+
+    This is useful for testing whether a sensitivity-analysis method
+    can identify influential inputs, distinguish inactive variables,
+    and recover known first- and second-order Sobol indices.
+
+    Uses the interaction coefficient beta documented by UQTestFuns
+    (with the typo correction mentioned in the link)
+
+    References:
+    [1] Morris, Moore & McKay (2006), J. Stat. Plan. Inference 136, 3203-3220.
+        https://doi.org/10.1016/j.jspi.2005.01.001
+    [2] https://www.sfu.ca/~ssurjano/morretal06.html
+    [3] https://uqtestfuns.readthedocs.io/en/stable/test-functions/morris-m.html
+    '''
+
 
     def _exact_sobol(self, dim, active, alpha, beta):
         """Order: S_i, ST_i, S_ij (lexicographic i<j); residual S_ijk..."""
@@ -113,7 +150,53 @@ class morris2006:
         return result
 
 
+
+
+
 class legendrePoly3:
+    '''
+    Third-order Legendre polynomial.
+
+    A custom sensitivity-analysis benchmark constructed from
+    products of orthonormal, first-degree shifted Legendre polynomials
+    for independent uniform inputs on [0,1].
+
+
+    Includes all first-, second-, and third-order interactions.
+    Coefficients are deterministically generated and normalized so
+    that these interaction orders contribute 20%, 30%, and 50%
+    of the output variance, respectively.
+
+    Exact properties for any dimension d >= 3:
+        Mean = 1
+        Variance = 1
+        First-order Sobol sum  = 0.2
+        Second-order Sobol sum = 0.3
+        Third-order Sobol sum  = 0.5
+        Higher-order Sobol sum = 0
+
+    The exact Sobol indices are the squared expansion coefficients.
+    Useful for testing sensitivity analysis in many dimensions,
+    especially the recovery of distributed pairwise and three-way
+    interactions and total-order effects.
+
+    Individual Sobol indices are squared expansion coefficients.
+    The coefficients are specific to this implementation and are
+    not taken from Sudret (2008).
+
+    Sudret (2008) instead studies a distinct polynomial benchmark:
+    f(x) = product_i [(1 + 3*x_i*x_i)/2]
+    with d=3, mean=1, variance=91/125, and exact Sobol indices
+    S_i=25/91, S_ij=5/91, S_123=1/91.
+
+    References:
+    [1] Sudret (2008), Reliab. Eng. Syst. Saf. 93, 964-979.
+        https://doi.org/10.1016/j.ress.2007.04.002
+    [2] PolynomialChaosReporter
+        https://mooseframework.inl.gov/source/reporters/PolynomialChaosReporter.html
+
+    '''
+
     def _coefficients(self, dim):
         """Coefficients and normalization from LegendrePoly3.cpp (0-based i,j,k)."""
         if dim < 3:

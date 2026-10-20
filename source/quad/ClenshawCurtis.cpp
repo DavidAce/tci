@@ -2,7 +2,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace quadrature {
+namespace sens::quadrature {
 
     Rule clenshawCurtis(int n, double lo, double hi) {
         detail::checkCount(n);

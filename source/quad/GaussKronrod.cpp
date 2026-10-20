@@ -1,7 +1,7 @@
 #include "quadrature.hpp"
 #include <array>
 
-namespace quadrature {
+namespace sens::quadrature {
 
     Rule gaussKronrod15(double lo, double hi) {
         detail::checkInterval(lo, hi);

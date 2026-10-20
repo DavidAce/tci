@@ -65,8 +65,8 @@ double LegendrePoly3::evaluateOriginal(const std::vector<double> &x) const {
     return result;
 }
 
-sens::util::SobolReference LegendrePoly3::exactSobolIndicesOriginal() const {
-    sens::util::SobolReference ref;
+sens::SobolReference LegendrePoly3::exactSobolIndicesOriginal() const {
+    sens::SobolReference ref;
     ref.first.resize(dim_);
     ref.total.resize(dim_);
 

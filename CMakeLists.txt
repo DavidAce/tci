@@ -12,7 +12,6 @@ project(TCI VERSION 0.1
 option(TCI_ENABLE_OPENMP   "Enable OpenMP flags such as -fopenmp"                 OFF)
 option(TCI_ENABLE_MPI      "Enables use of MPI (work in progress)"                OFF)
 option(TCI_ENABLE_COVERAGE "Adds the --coverage flag (used with github actions)"  OFF)
-option(TCI_BUILD_BENCH     "Builds benchmarks in ./bench"                         OFF)
 option(TCI_BUILD_EXAMPLES  "Builds examples in ./examples"                        OFF)
 option(TCI_BUILD_TESTS     "Builds unit tests in ./tests"                         OFF)
 option(TCI_CMAKE_DEBUG     "Print info during CMake configuration"                OFF)
@@ -32,7 +31,9 @@ add_executable(TCI
         source/func/LegendrePoly3.cpp
         source/func/NonlinearPolynomial.cpp
         source/func/PermutedFunction.cpp
+        source/sens/file.cpp
         source/sens/sens.cpp
+        source/sens/sobol.cpp
         source/quad/ClenshawCurtis.cpp
         source/quad/GaussKronrod.cpp
         source/quad/GaussLegendre.cpp
@@ -92,7 +93,6 @@ target_link_libraries(TCI PRIVATE tci-libs)
 ################################################################
 include(cmake/gitversion.cmake)
 
-add_subdirectory(bench)    # Builds benchmarks if TCI_BUILD_BENCH==ON
 add_subdirectory(examples) # Builds examples if TCI_BUILD_EXAMPLES==ON
 
 

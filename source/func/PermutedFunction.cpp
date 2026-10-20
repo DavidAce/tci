@@ -51,7 +51,7 @@ std::vector<int> PermutedFunction::initialPivot() const {
     return result;
 }
 
-sens::util::SobolReference PermutedFunction::exactSobolIndices() const {
+sens::SobolReference PermutedFunction::exactSobolIndices() const {
     auto ref = exactSobolIndicesOriginal();
 
     auto reorder = [&](std::vector<double> &values) {

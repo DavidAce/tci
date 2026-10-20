@@ -51,7 +51,7 @@ class LegendrePoly3 final : public PermutedFunction {
     std::pair<double, double>  domainOriginal(int) const override;
     std::vector<int>           initialPivotOriginal() const override;
     double                     evaluateOriginal(const std::vector<double> &x) const override;
-    sens::util::SobolReference exactSobolIndicesOriginal() const override;
+    sens::SobolReference exactSobolIndicesOriginal() const override;
 
     private:
     std::vector<double> a_, b_, c_;

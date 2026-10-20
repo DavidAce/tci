@@ -19,4 +19,4 @@ double NonlinearPolynomial::evaluateOriginal(const std::vector<double> &x) const
     return std::tanh(lambda_ * (polynomial_.evaluate(x) - 1.0));
 }
 
-sens::util::SobolReference NonlinearPolynomial::exactSobolIndicesOriginal() const { return {}; }
+sens::SobolReference NonlinearPolynomial::exactSobolIndicesOriginal() const { return {}; }

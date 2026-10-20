@@ -12,7 +12,7 @@ class NonlinearPolynomial final : public PermutedFunction {
     std::pair<double, double>  domainOriginal(int i) const override;
     std::vector<int>           initialPivotOriginal() const override;
     double                     evaluateOriginal(const std::vector<double> &x) const override;
-    sens::util::SobolReference exactSobolIndicesOriginal(/*unknown*/) const override;
+    sens::SobolReference exactSobolIndicesOriginal(/*unknown*/) const override;
 
     private:
     LegendrePoly3 polynomial_;

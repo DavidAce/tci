@@ -1,9 +1,9 @@
 #include "Morris2006.hpp"
-#include "sens/util.h"
+#include "sens/sobol.hpp"
 #include <cmath>
 #include <stdexcept>
 
-using namespace sens::util;
+using namespace sens;
 
 Morris2006::Morris2006(int dimension, int active, std::vector<int> permutation)
     : PermutedFunction(dimension, std::move(permutation)), dim_(dimension), p_(active) {

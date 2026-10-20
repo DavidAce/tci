@@ -23,16 +23,16 @@ class PermutedFunction : public BaseFunction {
     explicit PermutedFunction(int dim, std::vector<int> permutation);
 
     // Derived classes implement these in original coordinates.
-    virtual double                     evaluateOriginal(const std::vector<double> &x) const = 0;
-    virtual std::pair<double, double>  domainOriginal(int i) const                          = 0;
-    virtual sens::util::SobolReference exactSobolIndicesOriginal() const                    = 0;
-    virtual std::vector<int>           initialPivotOriginal() const;
+    virtual double                    evaluateOriginal(const std::vector<double> &x) const = 0;
+    virtual std::pair<double, double> domainOriginal(int i) const                          = 0;
+    virtual sens::SobolReference      exactSobolIndicesOriginal() const                    = 0;
+    virtual std::vector<int>          initialPivotOriginal() const;
 
     public:
-    int                        dimension() const final;
-    double                     evaluate(const std::vector<double> &x) const final;
-    std::pair<double, double>  domain(int k) const final;
-    std::vector<int>           initialPivot() const final;
-    sens::util::SobolReference exactSobolIndices() const final;
-    const std::vector<int>    &permutation() const;
+    int                       dimension() const final;
+    double                    evaluate(const std::vector<double> &x) const final;
+    std::pair<double, double> domain(int k) const final;
+    std::vector<int>          initialPivot() const final;
+    sens::SobolReference      exactSobolIndices() const final;
+    const std::vector<int>   &permutation() const;
 };
