@@ -7,9 +7,9 @@
 
 using TensorCI        = xfac::CTensorCI2<double, double>;
 using Grids           = sens::Grids;
-using GridProbe       = sens::util::GridProbe;
+using GridProbe       = sens::util::FunctionSample;
 using ConvergenceData = sens::util::ConvergenceData;
-using ProbeAccuracy   = sens::util::ProbeAccuracy;
+using ProbeAccuracy   = sens::util::GridSampleAccuracy;
 
 ConvergenceData sens::sampleOffGridControlPoints(const BaseFunction &function, const Grids &grids, int count) {
     util::ConvergenceData data;

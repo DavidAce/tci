@@ -14,7 +14,7 @@
 // using namespace sens::util;
 
 using Grids     = sens::Grids;
-using GridProbe = sens::util::GridProbe;
+using GridProbe = sens::util::FunctionSample;
 
 std::pair<Grids, Grids> sens::makeIntegrationGrids(const BaseFunction &function, const Quadrature &makeQuadrature) {
     const int dim = function.dimension();

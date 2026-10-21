@@ -10,7 +10,7 @@ namespace sens {
     namespace util {
         struct Status;
         struct TargetProgress;
-        struct ProbeAccuracy;
+        struct GridSampleAccuracy;
     }
 
     void   printSweepHeader(const BaseFunction &function, bool hasExact);
@@ -24,6 +24,6 @@ namespace sens {
                              const std::vector<double> &targets, const util::TargetProgress &progress, int dim,
                              std::size_t nGridProbes);
 
-    void printGridProbeAccuracy(const util::ProbeAccuracy &accuracy);
+    void printGridProbeAccuracy(const util::GridSampleAccuracy &accuracy);
 
 }

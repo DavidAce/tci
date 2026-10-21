@@ -107,7 +107,7 @@ namespace sens {
                    "  Combined subtotal: {}\n",
                    finalStatus.nEval, nGridProbes, finalStatus.nEval + nGridProbes);
     }
-    void printGridProbeAccuracy(const ProbeAccuracy &accuracy) {
+    void printGridProbeAccuracy(const GridSampleAccuracy &accuracy) {
         fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relRmse,
                    accuracy.maxAbsError);
     }

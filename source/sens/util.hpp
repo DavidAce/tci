@@ -20,11 +20,16 @@ namespace sens::util {
         std::vector<int> bondDims;
         std::string      stopMsg;
     };
-    struct GridProbe {
+
+    struct FunctionSample {
         std::vector<int> indices;
-        double           exact = 0;
+        double              exact = 0;
     };
-    struct ProbeAccuracy {
+    // struct GridSample {
+    //     std::vector<int> indices;
+    //     double           exact = 0;
+    // };
+    struct GridSampleAccuracy {
         double           rmse        = 0;
         double           relRmse     = 0;
         double           maxAbsError = 0;

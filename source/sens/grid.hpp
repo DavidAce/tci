@@ -10,5 +10,5 @@ namespace sens {
 
     std::pair<Grids, Grids>      makeIntegrationGrids(const BaseFunction &function, const Quadrature &makeQuadrature);
     std::vector<double>          randomOffGridPoint(const BaseFunction &function, const Grids &grids);
-    std::vector<util::GridProbe> sampleGridReferencePoints(const BaseFunction &function, const Grids &grids, int count);
+    std::vector<util::FunctionSample> sampleGridReferencePoints(const BaseFunction &function, const Grids &grids, int count);
 }

@@ -14,14 +14,14 @@ namespace sens {
 
     namespace util {
         struct ConvergenceData;
-        struct ProbeAccuracy;
-        struct GridProbe;
+        struct GridSampleAccuracy;
+        struct FunctionSample;
     }
     using Grids = std::vector<std::vector<double>>;
 
     util::ConvergenceData sampleOffGridControlPoints(const BaseFunction &function, const Grids &grids, int count);
 
-    util::ProbeAccuracy measureGridApproximationError(const TensorCI &ci, const std::vector<util::GridProbe> &probes,
+    util::GridSampleAccuracy measureGridApproximationError(const TensorCI &ci, const std::vector<util::FunctionSample> &probes,
                                          const std::set<std::vector<int>> &insertedPivots);
 
     double offGridPredictionRMSE(const TensorCI &ci, const Grids &grids, const util::ConvergenceData &control);

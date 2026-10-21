@@ -123,7 +123,7 @@ namespace sens {
 
     // Return true only when both the requested accuracy and independent grid accuracy are satisfactory.
     bool hasConverged(Status &status, const TensorCI &ci, const Grids &grids, const ConvergenceData &control,
-                      bool hasExact, const ProbeAccuracy &probes) {
+                      bool hasExact, const GridSampleAccuracy &probes) {
         if(!ci.isDone()) return false;
         const double rmse = hasExact ? status.sobolResult.rmse : offGridPredictionRMSE(ci, grids, control);
         if(!std::isfinite(rmse) || rmse > cfg::convTol || probes.relRmse > AnalysisSettings::probeTolerance)
@@ -143,7 +143,7 @@ namespace sens {
     }
 
     // A recovery attempt is permitted only if an inaccurate, unused grid pivot is available.
-    bool insertRecoveryPivot(TensorCI &ci, Status &status, const ProbeAccuracy &accuracy, RecoveryState &recovery,
+    bool insertRecoveryPivot(TensorCI &ci, Status &status, const GridSampleAccuracy &accuracy, RecoveryState &recovery,
                              int maxSweeps) {
         if(accuracy.relRmse <= AnalysisSettings::probeTolerance) {
             status.stopMsg = "Saturated: grid-point error small, but target RMSE not reached";
@@ -174,7 +174,7 @@ namespace sens {
     }
 
     void runTCISweeps(TensorCI &ci, const Grids &grids, const Grids &weights, const SobolReference &reference,
-                      const ConvergenceData &control, const std::vector<util::GridProbe> &gridProbes,
+                      const ConvergenceData &control, const std::vector<util::FunctionSample> &gridProbes,
                       const std::vector<double> &targets, int maxSweeps, std::vector<Status> &statusLog,
                       TargetProgress &progress) {
         const bool    hasExact = hasExactSobolIndices(reference, static_cast<int>(grids.size()));
