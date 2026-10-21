@@ -13,7 +13,8 @@ namespace cli {
         app.option_defaults()->always_capture_default();
         app.add_option("--function", functionName, "Test function")
             ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly"}));
-        app.add_option("--quadrature", quadratureName, "Quadrature rule")->check(CLI::IsMember({"gk15", "gl", "cc"}));
+        app.add_option("--quadrature", quadratureRuleName, "Quadrature rule")
+            ->check(CLI::IsMember({"gk15", "gl", "cc"}));
         app.add_option("--outdir", outdir, "Output directory for the results (HDF5 file)");
         app.add_option("--nnodes", nnodes, "Number of Nodes (discretization points) per parameter ")
             ->default_val(15)
@@ -26,8 +27,8 @@ namespace cli {
             ->check(CLI::PositiveNumber);
         app.add_option("--active", active, "The number of input parameters for the function (legendre and npoly)")
             ->check(CLI::PositiveNumber);
-        app.add_option("--npredictions", npredictions,
-                       "The number of off-grid function values to predict with the trained model")
+        app.add_option("--nsamples", nsamples,
+                       "Number of independent function samples used to measure prediction accuracy")
             ->check(CLI::PositiveNumber);
         app.add_option("--permutation", permutation, "TCI parameter order (0-based permutation)")
             ->delimiter(',')
@@ -43,7 +44,7 @@ namespace cli {
         if(functionName == "morris" && active >= dimension)
             throw std::invalid_argument(
                 fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
-        if(quadratureName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
+        if(quadratureRuleName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
     }
 
 }

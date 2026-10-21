@@ -29,24 +29,7 @@ namespace sens::util {
     //     std::vector<int> indices;
     //     double           exact = 0;
     // };
-    struct GridSampleAccuracy {
-        double           rmse        = 0;
-        double           relRmse     = 0;
-        double           maxAbsError = 0;
-        std::vector<int> proposedPivot;
-    };
-    struct Predictions {
-        using vlen_type                = h5pp::varr_t<double>;
-        double               predicted = 0;
-        double               funcvalue = 0;
-        double               error     = 0;
-        h5pp::varr_t<double> point;
-    };
 
-    struct FunctionEvaluator {
-        const BaseFunction &function;
-        double              operator()(const std::vector<double> &point) const { return function.evaluate(point); }
-    };
     struct TargetProgress {
         std::vector<std::size_t> firstEval;
         explicit TargetProgress(std::size_t n) : firstEval(n, 0) {}
@@ -56,7 +39,7 @@ namespace sens::util {
         std::vector<double>              values;
     };
     struct RecoveryState {
-        std::set<std::vector<int>> insertedPivots;
+        std::set<std::vector<int>> insertedPoints;
         int                        attempts = 0;
     };
 

@@ -3,12 +3,19 @@
 
 #include "func/BaseFunction.hpp"
 #include "quad/quadrature.hpp"
-#include "util.hpp"
+#include "samples.hpp"
+#include "types.hpp"
 #include <vector>
-namespace sens {
-    using Grids = std::vector<std::vector<double>>;
 
-    std::pair<Grids, Grids>      makeIntegrationGrids(const BaseFunction &function, const Quadrature &makeQuadrature);
-    std::vector<double>          randomOffGridPoint(const BaseFunction &function, const Grids &grids);
-    std::vector<util::FunctionSample> sampleGridReferencePoints(const BaseFunction &function, const Grids &grids, int count);
+class BaseFunction;
+
+namespace sens {
+    struct Discretization {
+        Grid               nodes;
+        IntegrationWeights integrationWeights;
+    };
+
+    Discretization discretizeInputs(const BaseFunction &function, const QuadratureRuleFactory &makeRule);
+    Point          sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid);
+    NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
 }

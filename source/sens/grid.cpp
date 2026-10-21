@@ -2,7 +2,6 @@
 #include "func/BaseFunction.hpp"
 #include "quad/quadrature.hpp"
 #include "rnd/rnd.hpp"
-#include "util.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <random>
@@ -10,27 +9,27 @@
 #include <utility>
 #include <vector>
 
-// using namespace sens;
-// using namespace sens::util;
-
-using Grids     = sens::Grids;
-using GridProbe = sens::util::FunctionSample;
-
-std::pair<Grids, Grids> sens::makeIntegrationGrids(const BaseFunction &function, const Quadrature &makeQuadrature) {
+sens::Discretization sens::discretizeInputs(const BaseFunction &function, const QuadratureRuleFactory &makeRule) {
     const int dim = function.dimension();
-    Grids     grids(dim), weights(dim);
+
+    Discretization result;
+    result.nodes.resize(dim);
+    result.integrationWeights.resize(dim);
+
     for(int k = 0; k < dim; ++k) {
-        auto [lo, hi] = function.domain(k);
-        auto rule     = makeQuadrature(lo, hi);
-        grids[k]      = std::move(rule.nodes);
-        weights[k]    = std::move(rule.weights);
+        const auto [lo, hi] = function.domain(k);
+        auto rule           = makeRule(lo, hi);
+
+        result.nodes[k]              = std::move(rule.nodes);
+        result.integrationWeights[k] = std::move(rule.weights);
     }
-    return {std::move(grids), std::move(weights)};
+
+    return result;
 }
 
-std::vector<double> sens::randomOffGridPoint(const BaseFunction &function, const Grids &grids) {
+std::vector<double> sens::sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid) {
     const int dim = function.dimension();
-    if(grids.size() != static_cast<std::size_t>(dim)) throw std::invalid_argument("Grid dimension mismatch");
+    if(grid.size() != static_cast<std::size_t>(dim)) throw std::invalid_argument("Grid dimension mismatch");
     std::vector<double> point(dim);
     for(int k = 0; k < dim; ++k) {
         const auto [lo, hi] = function.domain(k);
@@ -38,26 +37,35 @@ std::vector<double> sens::randomOffGridPoint(const BaseFunction &function, const
         do {
             point[k] = rnd::uniform_double_box(lo, hi);
         } while(point[k] <= lo || point[k] >= hi ||
-                std::find(grids[k].begin(), grids[k].end(), point[k]) != grids[k].end());
+                std::find(grid[k].begin(), grid[k].end(), point[k]) != grid[k].end());
     }
     return point;
 }
 
-std::vector<GridProbe> sens::sampleGridReferencePoints(const BaseFunction &function, const Grids &grids, int count) {
-    std::mt19937_64        rng(123456789); // Separate from the RNG used by TCI.
-    std::vector<GridProbe> probes;
-    probes.reserve(count);
+sens::NodeSamples sens::sampleNodePoints(const BaseFunction &function, const Grid &nodes, int count) {
+    std::mt19937_64 rng(123456789);
+
+    NodeSamples samples;
+    samples.reserve(count);
+
     for(int n = 0; n < count; ++n) {
-        GridProbe probe;
-        probe.indices.resize(grids.size());
-        std::vector<double> point(grids.size());
-        for(std::size_t k = 0; k < grids.size(); ++k) {
-            std::uniform_int_distribution<int> distribution(0, static_cast<int>(grids[k].size()) - 1);
-            probe.indices[k] = distribution(rng);
-            point[k]         = grids[k][probe.indices[k]];
+        NodeSample sample;
+        sample.indices.resize(nodes.size());
+
+        Point point(nodes.size());
+
+        for(std::size_t k = 0; k < nodes.size(); ++k) {
+            std::uniform_int_distribution<int> distribution(0, static_cast<int>(nodes[k].size()) - 1);
+
+            const int index = distribution(rng);
+
+            sample.indices[k] = index;
+            point[k]          = nodes[k][index];
         }
-        probe.exact = function.evaluate(point);
-        probes.push_back(std::move(probe));
+
+        sample.value = function.evaluate(point);
+        samples.push_back(std::move(sample));
     }
-    return probes;
+
+    return samples;
 }

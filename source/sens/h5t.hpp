@@ -3,7 +3,13 @@
 #include <h5pp/details/h5ppVarr.h>
 
 namespace sens {
-
+    struct PredictionRecord {
+        using vlen_type                = h5pp::varr_t<double>;
+        double               predicted = 0;
+        double               funcvalue = 0;
+        double               error     = 0;
+        h5pp::varr_t<double> point;
+    };
     struct h5XfacParam {
         using vlen_type = h5pp::varr_t<int>;
         int               bondDim;

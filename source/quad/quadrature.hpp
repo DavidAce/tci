@@ -8,8 +8,7 @@ namespace sens {
         struct Rule;
     }
 
-    using Quadrature = std::function<quadrature::Rule(double lo, double hi)>;
-
+    using QuadratureRuleFactory = std::function<quadrature::Rule(double lo, double hi)>;
     namespace quadrature {
 
         // Nodes are sorted in ascending order on [lo, hi].

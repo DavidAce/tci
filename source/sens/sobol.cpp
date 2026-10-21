@@ -11,10 +11,9 @@
 
 namespace sens {
     // using Grids = std::vector<std::vector<double>>;
-    using QuadratureWeights = std::vector<std::vector<double>>;
 
     // Contract the TT with its conjugate after averaging selected variables.
-    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const QuadratureWeights &weights,
+    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const IntegrationWeights &weights,
                                    const std::vector<bool> &integrateOut) {
         const int         dim = static_cast<int>(weights.size());
         arma::Mat<double> G(1, 1, arma::fill::ones);
@@ -56,7 +55,7 @@ namespace sens {
         if(hasExact) maxDiff = std::max(maxDiff, error);
     }
 
-    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const QuadratureWeights &weights,
+    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const IntegrationWeights &weights,
                                       const Statistics &statistics, const SobolReference &reference) {
         const int    dim      = statistics.dim;
         const bool   hasExact = hasExactSobolIndices(reference, dim);

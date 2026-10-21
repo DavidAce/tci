@@ -12,15 +12,12 @@ namespace xfac {
 }
 
 namespace sens {
-
-    namespace util {
-        struct Status;
-        struct Predictions;
-    }
+    struct PredictionRecord;
+    struct Status;
 
     void writeSimulationParameters(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
                                    const std::vector<double> &targets);
-    void writePredictions(h5pp::File &file, const std::vector<util::Predictions> &predictions);
-    void appendStatus(h5pp::File &file, const util::Status &status);
-    void writeStatusLog(h5pp::File &file, const std::vector<util::Status> &statuses);
+    void writePredictions(h5pp::File &file, const std::vector<PredictionRecord> &predictions);
+    void appendStatus(h5pp::File &file, const Status &status);
+    void writeStatusLog(h5pp::File &file, const std::vector<Status> &statuses);
 }

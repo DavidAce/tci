@@ -1,15 +1,14 @@
 #include "hdf5.hpp"
 #include "func/BaseFunction.hpp"
 #include "h5t.hpp"
-#include "util.hpp"
+#include "status.hpp"
 #include <h5pp/h5pp.h>
 #include <xfac/tensor/tensor_ci_2.h>
 
 namespace sens {
-    using namespace util;
 
     void writeSimulationParameters(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
-                                 const std::vector<double> &targets) {
+                                   const std::vector<double> &targets) {
         const h5XfacParam     xfacParam{p.bondDim, p.reltol, p.pivot1, p.fullPiv, p.nRookIter, p.useCachedFunction};
         static h5pp::hid::h5t xfacType;
         constexpr const char *xfacPath = "param/xfac";
@@ -38,16 +37,16 @@ namespace sens {
         file.appendTableRecords(tciParam, tciPath);
     }
 
-    void writePredictions(h5pp::File &file, const std::vector<Predictions> &predictions) {
+    void writePredictions(h5pp::File &file, const std::vector<PredictionRecord> &predictions) {
         if(predictions.empty()) return;
         static h5pp::hid::h5t type;
         constexpr const char *path = "tci/predictions";
         if(!type.valid()) {
-            type = H5Tcreate(H5T_COMPOUND, sizeof(Predictions));
-            H5Tinsert(type, "predicted", HOFFSET(Predictions, predicted), H5T_NATIVE_DOUBLE);
-            H5Tinsert(type, "funcvalue", HOFFSET(Predictions, funcvalue), H5T_NATIVE_DOUBLE);
-            H5Tinsert(type, "error", HOFFSET(Predictions, error), H5T_NATIVE_DOUBLE);
-            H5Tinsert(type, "point", HOFFSET(Predictions, point), h5pp::varr_t<double>::get_h5type());
+            type = H5Tcreate(H5T_COMPOUND, sizeof(PredictionRecord));
+            H5Tinsert(type, "predicted", HOFFSET(PredictionRecord, predicted), H5T_NATIVE_DOUBLE);
+            H5Tinsert(type, "funcvalue", HOFFSET(PredictionRecord, funcvalue), H5T_NATIVE_DOUBLE);
+            H5Tinsert(type, "error", HOFFSET(PredictionRecord, error), H5T_NATIVE_DOUBLE);
+            H5Tinsert(type, "point", HOFFSET(PredictionRecord, point), h5pp::varr_t<double>::get_h5type());
         }
         if(!file.linkExists(path)) file.createTable(type, path, "Function value predictions");
         file.writeTableRecords(predictions, path);
@@ -59,6 +58,8 @@ namespace sens {
             int               sweeps, sweepsUnchanged, minSweepsUnchanged;
             double            changeTol;
             int               nEval;
+            double            prediction_rmse;
+            double            prediction_rel_rmse;
             double            stat_mean, stat_variance, sobol_rmse, sobol_maxDiff;
             h5pp::varr_t<int> bondDims;
             h5pp::vstr_t      stopMsg;
@@ -68,6 +69,8 @@ namespace sens {
                                     status.minSweepsUnchanged,
                                     status.changeTol,
                                     status.nEval,
+                                    status.predictionRMSE,
+                                    status.predictionRelativeRMSE,
                                     status.statistics.mean,
                                     status.statistics.variance,
                                     status.sobolResult.rmse,
@@ -83,6 +86,8 @@ namespace sens {
             H5Tinsert(statusType, "minSweepsUnchanged", HOFFSET(H5Status, minSweepsUnchanged), H5T_NATIVE_INT);
             H5Tinsert(statusType, "changeTol", HOFFSET(H5Status, changeTol), H5T_NATIVE_DOUBLE);
             H5Tinsert(statusType, "nEval", HOFFSET(H5Status, nEval), H5T_NATIVE_INT);
+            H5Tinsert(statusType, "prediction_rmse", HOFFSET(H5Status, prediction_rmse), H5T_NATIVE_DOUBLE);
+            H5Tinsert(statusType, "prediction_rel_rmse", HOFFSET(H5Status, prediction_rel_rmse), H5T_NATIVE_DOUBLE);
             H5Tinsert(statusType, "stat_mean", HOFFSET(H5Status, stat_mean), H5T_NATIVE_DOUBLE);
             H5Tinsert(statusType, "stat_variance", HOFFSET(H5Status, stat_variance), H5T_NATIVE_DOUBLE);
             H5Tinsert(statusType, "sobol_rmse", HOFFSET(H5Status, sobol_rmse), H5T_NATIVE_DOUBLE);

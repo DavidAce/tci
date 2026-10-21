@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sens/types.hpp"
 #include <h5pp/details/h5ppFstr.h>
 #include <vector>
 
@@ -8,7 +9,7 @@ namespace xfac {
     class TensorTrain;
 }
 namespace sens {
-    using Grids = std::vector<std::vector<double>>;
+
     struct Statistics {
         int    dim      = 0;
         double mean     = 0.0;
@@ -48,7 +49,7 @@ namespace sens {
     };
 
     // Contract the TT with its conjugate after averaging selected variables.
-    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const Grids &weights,
+    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const IntegrationWeights &weights,
                                    const std::vector<bool> &integrateOut);
 
     double maximumSobolChange(const SobolResult &current, const SobolResult &previous);
@@ -57,7 +58,7 @@ namespace sens {
     void appendSobolIndex(std::vector<SobolIndex> &indices, const std::string &name, double estimated, double exact,
                           bool hasExact, double &maxDiff);
 
-    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const Grids &weights,
+    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const IntegrationWeights &weights,
                                       const Statistics &statistics, const SobolReference &reference);
 
 }

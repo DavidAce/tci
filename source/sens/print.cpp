@@ -1,35 +1,30 @@
 #include "print.hpp"
+#include "accuracy.hpp"
+#include "func/BaseFunction.hpp"
 #include "sobol.hpp"
-#include "util.hpp"
-
+#include "status.hpp"
+#include <xfac/tensor/tensor_ci_2.h>
 namespace sens {
-    using namespace util;
 
     void printSweepHeader(const BaseFunction &function, bool hasExact) {
         fmt::print("\n=== {} (dim={}) ===\n", function.name(), function.dimension());
-        if(hasExact)
-            fmt::print("{:<11} {:>6} {:>8} {:>12} {:>12}\n", "method", "sweeps", "nEval", "RMSE", "maxDiff");
-        else
-            fmt::print("{:<11} {:>6} {:>8} {:>14} {:>14} {:>12}\n", "method", "sweeps", "nEval", "mean", "variance",
-                       "maxDeltaS");
+
+        fmt::print("{:<8} {:>7} {:>9} {:>13} {:>13} {:>13}\n", "method", "sweeps", "nEval", "predRMSE", "predRelRMSE",
+                   "sobolRMSE");
     }
-    void printSweepStatus(Status &status, const Status *previous, const SobolReference &reference) {
-        if(hasExactSobolIndices(reference, status.statistics.dim)) {
-            fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", status.sweeps, status.nEval,
-                       status.sobolResult.rmse, status.sobolResult.maxDiff);
-        } else {
-            const double      delta     = previous ? maximumSobolChange(status.sobolResult, previous->sobolResult)
-                                                   : std::numeric_limits<double>::quiet_NaN();
-            const std::string deltaText = std::isfinite(delta) ? fmt::format("{:.3e}", delta) : "-";
-            fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", status.sweeps, status.nEval,
-                       status.statistics.mean, status.statistics.variance, deltaText);
-        }
+
+    void printSweepStatus(const Status &status, const Status *previous, const SobolReference &reference) {
+        const bool        hasExact  = hasExactSobolIndices(reference, status.statistics.dim);
+        const std::string sobolRMSE = hasExact ? fmt::format("{:.4e}", status.sobolResult.rmse) : "-";
+        fmt::print("{:<8} {:>7} {:>9} {:>13.4e} {:>13.4e} {:>13}\n", "TCI2", status.sweeps, status.nEval,
+                   status.predictionRMSE, status.predictionRelativeRMSE, sobolRMSE);
     }
-    void printTargetEvaluations(const std::vector<double> &targets, const TargetProgress &progress) {
+
+    void printTargetEvaluations(const FunctionSamples &samples, const TargetProgress &progress) {
         fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");
-        for(std::size_t i = 0; i < targets.size(); ++i) {
+        for(std::size_t i = 0; i < samples.size(); ++i) {
             const auto value = progress.firstEval[i] == 0 ? "not reached" : fmt::format("{}", progress.firstEval[i]);
-            fmt::print("{:>12.1e} {:>12}\n", targets[i], value);
+            fmt::print("{:>12.1e} {:>12}\n", samples[i].value, value);
         }
     }
 
@@ -83,12 +78,13 @@ namespace sens {
         fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_residual", "-", 1.0 - sumFirst - sumSecond);
     }
 
-    void printFinalResults(const Status &finalStatus, const SobolReference &reference,
-                           const std::vector<double> &targets, const TargetProgress &progress, int dim,
+    void printFinalResults(const xfac::TensorCI2<double> &ci, const Status &finalStatus,
+                           const SobolReference &reference, const FunctionSamples &functionSamples,
+                           const NodeSamples &nodeSamples, const TargetProgress &progress, int dim,
                            std::size_t nGridProbes) {
         const bool hasExact = hasExactSobolIndices(reference, dim);
         fmt::print("{}\n", finalStatus.stopMsg);
-        if(hasExact) printTargetEvaluations(targets, progress);
+        if(hasExact) printTargetEvaluations(functionSamples, progress);
         fmt::print("\nFinal bond dimensions: {}\nMean: {:.8e}, Variance: {:.8e}\n", finalStatus.bondDims,
                    finalStatus.statistics.mean, finalStatus.statistics.variance);
         printSobolIndices(finalStatus.sobolResult, dim, hasExact);
@@ -101,14 +97,20 @@ namespace sens {
                        finalStatus.sobolResult.rmse, finalStatus.sobolResult.maxDiff, finalStatus.statistics.mean,
                        finalStatus.statistics.variance);
         }
+
+        const std::size_t nTCI             = ci.f.nEval();
+        const std::size_t nNodeSamples     = nodeSamples.size();
+        const std::size_t nFunctionSamples = functionSamples.size();
+
         fmt::print("\nFunction evaluations:\n"
                    "  TCI and recovery: {}\n"
-                   "  Independent grid probes: {}\n"
-                   "  Combined subtotal: {}\n",
-                   finalStatus.nEval, nGridProbes, finalStatus.nEval + nGridProbes);
+                   "  Node samples: {}\n"
+                   "  Independent function samples: {}\n"
+                   "  Subtotal: {}\n",
+                   nTCI, nNodeSamples, nFunctionSamples, nTCI + nNodeSamples + nFunctionSamples);
     }
-    void printGridProbeAccuracy(const GridSampleAccuracy &accuracy) {
-        fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relRmse,
-                   accuracy.maxAbsError);
+    void printGridProbeAccuracy(const NodeSampleError &accuracy) {
+        fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relativeRMSE,
+                   accuracy.maxAbsoluteError);
     }
 }

@@ -1,6 +1,6 @@
 #pragma once
 #include "PermutedFunction.hpp"
-#include "sens/util.hpp"
+
 // ------------------------------------------------------------
 // Ishigami
 // ------------------------------------------------------------
@@ -15,8 +15,8 @@ class Ishigami final : public PermutedFunction {
     std::string_view name() const override;
 
     protected:
-    std::pair<double, double>  domainOriginal(int) const override;
-    std::vector<int>           initialPivotOriginal() const override;
-    double                     evaluateOriginal(const std::vector<double> &x) const override;
-    sens::SobolReference exactSobolIndicesOriginal() const override;
+    std::pair<double, double> domainOriginal(int) const override;
+    std::vector<int>          initialPivotOriginal() const override;
+    double                    evaluateOriginal(const std::vector<double> &x) const override;
+    sens::SobolReference      exactSobolIndicesOriginal() const override;
 };

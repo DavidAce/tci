@@ -1,28 +1,38 @@
 #pragma once
-#include "sens/util.hpp"
-#include <set>
-#include <vector>
 
-struct BaseFunction;
+#include "samples.hpp"
+#include "types.hpp"
+#include <limits>
+#include <set>
+
+class BaseFunction;
+
 namespace xfac {
     template<class T1, class T2>
     class CTensorCI2;
 }
-using TensorCI = xfac::CTensorCI2<double, double>;
 
 namespace sens {
 
-    namespace util {
-        struct ConvergenceData;
-        struct GridSampleAccuracy;
-        struct FunctionSample;
-    }
-    using Grids = std::vector<std::vector<double>>;
+    using TensorCI = xfac::CTensorCI2<double, double>;
 
-    util::ConvergenceData sampleOffGridControlPoints(const BaseFunction &function, const Grids &grids, int count);
+    struct NodeSampleError {
+        double rmse             = 0.0;
+        double relativeRMSE     = 0.0;
+        double maxAbsoluteError = 0.0;
 
-    util::GridSampleAccuracy measureGridApproximationError(const TensorCI &ci, const std::vector<util::FunctionSample> &probes,
-                                         const std::set<std::vector<int>> &insertedPivots);
+        NodeIndices suggestedPoint;
+    };
 
-    double offGridPredictionRMSE(const TensorCI &ci, const Grids &grids, const util::ConvergenceData &control);
+    struct PredictionError {
+        double rmse             = std::numeric_limits<double>::quiet_NaN();
+        double relativeRMSE     = std::numeric_limits<double>::quiet_NaN();
+        double maxAbsoluteError = std::numeric_limits<double>::quiet_NaN();
+    };
+
+    FunctionSamples sampleFunctionValues(const BaseFunction &function, const Grid &grid, int count);
+    NodeSampleError measureNodeSampleError(const TensorCI &ci, const NodeSamples &samples,
+                                           const std::set<NodeIndices> &insertedPoints);
+    PredictionError measurePredictionError(const TensorCI &ci, const Grid &grid, const FunctionSamples &samples);
+
 }

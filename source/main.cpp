@@ -21,12 +21,12 @@ int main(int argc, char **argv) {
 
     using namespace cfg;
     using namespace sens;
-    
+
     auto makeQuadrature = [&](double lo, double hi) {
-        if(cfg::quadratureNameHas("gk15")) return quadrature::gaussKronrod15(lo, hi);
-        if(cfg::quadratureNameHas("gl")) return quadrature::gaussLegendre(nnodes, lo, hi);
-        if(cfg::quadratureNameHas("cc")) return quadrature::clenshawCurtis(nnodes, lo, hi);
-        throw std::invalid_argument(fmt::format("Unhandled quadrature name: {}", cfg::quadratureName));
+        if(cfg::quadratureRuleNameHas("gk15")) return quadrature::gaussKronrod15(lo, hi);
+        if(cfg::quadratureRuleNameHas("gl")) return quadrature::gaussLegendre(nnodes, lo, hi);
+        if(cfg::quadratureRuleNameHas("cc")) return quadrature::clenshawCurtis(nnodes, lo, hi);
+        throw std::invalid_argument(fmt::format("Unhandled quadrature name: {}", cfg::quadratureRuleName));
     };
 
     auto t_start = std::chrono::steady_clock::now();
