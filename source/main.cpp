@@ -48,5 +48,5 @@ int main(int argc, char **argv) {
     }
     auto t_end     = std::chrono::steady_clock::now();
     auto t_elapsed = t_end - t_start;
-    fmt::print("Total time elapsed: {:.4e} s\n", std::chrono::duration<double>(t_elapsed).count());
+    fmt::print("\nTotal time elapsed: {:.4e} s\n", std::chrono::duration<double>(t_elapsed).count());
 }

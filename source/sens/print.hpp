@@ -1,5 +1,6 @@
 #pragma once
 #include "samples.hpp"
+#include "sens/h5t.hpp"
 #include <vector>
 
 class BaseFunction;
@@ -13,18 +14,19 @@ namespace sens {
     struct Status;
     struct TargetProgress;
     struct NodeSampleError;
+    struct PredictionRecord;
 
     void   printSweepHeader(const BaseFunction &function, bool hasExact);
     void   printSweepStatus(const Status &status, const Status *previous, const SobolReference &reference);
-    void   printTargetEvaluations(const std::vector<double> &targets, const TargetProgress &progress);
     void   printSobolIndices(const SobolResult &result, int dim, bool hasExact);
     double printSobolGroup(const SobolResult &result, const char *name, std::size_t offset, std::size_t count,
                            bool hasExact);
     void   printSobolSummary(const SobolResult &result, const SobolReference &reference, int dim, bool hasExact);
+    void   printPredictions(const std::vector<PredictionRecord> &predictions, bool printIndividualSamples = false);
     void   printFinalResults(const xfac::TensorCI2<double> &ci, const Status &finalStatus,
-                             const SobolReference &reference, const FunctionSamples &functionSamples,
-                             const NodeSamples &nodeSamples, const TargetProgress &progress, int dim,
-                             std::size_t nGridProbes);
+                             const SobolReference &reference, const std::vector<double> &targets,
+                             const FunctionSamples &functionSamples, const NodeSamples &nodeSamples,
+                             const TargetProgress &progress, int dim, std::size_t nGridProbes);
     void   printGridProbeAccuracy(const NodeSampleError &accuracy);
 
 }

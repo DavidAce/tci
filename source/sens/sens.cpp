@@ -215,9 +215,8 @@ namespace sens {
                 updateSweepStatus(recovered, ci, grid, weights, funcSamples, reference, targets, progress);
                 printSweepStatus(recovered, &beforeRecovery, reference);
                 const auto recoveredAccuracy = measureNodeSampleError(ci, nodeSamples, recovery.insertedPoints);
-                // printGridProbeAccuracy(recoveredAccuracy);
                 fmt::print("Bond dimensions after recovery: {}\n\n", recovered.bondDims);
-                if(hasConverged(recovered, ci, nodeError)) break;
+                if(hasConverged(recovered, ci, recoveredAccuracy)) break;
             }
         }
         if(statusLog.back().stopMsg.empty())
@@ -267,9 +266,12 @@ namespace sens {
                      progress);
 
         writeStatusLog(h5file, statusLog);
-        printFinalResults(ci, statusLog.back(), reference, functionSamples, nodeSamples, progress,
+        printFinalResults(ci, statusLog.back(), reference, relTolTargets, functionSamples, nodeSamples, progress,
                           function.dimension(), nodeSamples.size());
-        writePredictions(h5file, calculatePredictions(ci, nodes, functionSamples));
+
+        const auto predictions = calculatePredictions(ci, nodes, functionSamples);
+        printPredictions(predictions);
+        writePredictions(h5file, predictions);
         sil::writeSIL(h5file, sil::calculateSIL(ci.tt, weights));
     }
 

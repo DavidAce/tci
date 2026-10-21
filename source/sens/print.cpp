@@ -1,8 +1,13 @@
 #include "print.hpp"
 #include "accuracy.hpp"
 #include "func/BaseFunction.hpp"
+#include "h5t.hpp"
 #include "sobol.hpp"
 #include "status.hpp"
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
 #include <xfac/tensor/tensor_ci_2.h>
 namespace sens {
 
@@ -18,14 +23,6 @@ namespace sens {
         const std::string sobolRMSE = hasExact ? fmt::format("{:.4e}", status.sobolResult.rmse) : "-";
         fmt::print("{:<8} {:>7} {:>9} {:>13.4e} {:>13.4e} {:>13}\n", "TCI2", status.sweeps, status.nEval,
                    status.predictionRMSE, status.predictionRelativeRMSE, sobolRMSE);
-    }
-
-    void printTargetEvaluations(const FunctionSamples &samples, const TargetProgress &progress) {
-        fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");
-        for(std::size_t i = 0; i < samples.size(); ++i) {
-            const auto value = progress.firstEval[i] == 0 ? "not reached" : fmt::format("{}", progress.firstEval[i]);
-            fmt::print("{:>12.1e} {:>12}\n", samples[i].value, value);
-        }
     }
 
     void printSobolIndices(const SobolResult &result, int dim, bool hasExact) {
@@ -78,13 +75,49 @@ namespace sens {
         fmt::print("{:<12} {:>6} {:>14.8f}\n", "S_residual", "-", 1.0 - sumFirst - sumSecond);
     }
 
+    void printPredictions(const std::vector<PredictionRecord> &predictions, bool printIndividualSamples) {
+        if(predictions.empty()) return;
+
+        double sumSquaredError  = 0.0;
+        double sumSquaredValues = 0.0;
+        double maxAbsoluteError = 0.0;
+
+        for(const auto &prediction : predictions) {
+            const double error = prediction.predicted - prediction.funcvalue;
+
+            sumSquaredError += error * error;
+            sumSquaredValues += prediction.funcvalue * prediction.funcvalue;
+            maxAbsoluteError = std::max(maxAbsoluteError, std::abs(error));
+        }
+        const double rmse         = std::sqrt(sumSquaredError / predictions.size());
+        const double relativeRMSE = sumSquaredValues > 0.0 ? std::sqrt(sumSquaredError / sumSquaredValues)
+                                                           : std::numeric_limits<double>::quiet_NaN();
+
+        fmt::print("\n=== Function sample predictions ===\n");
+        fmt::print("Number of samples : {}\n", predictions.size());
+        fmt::print("RMSE              :        {:.8e}\n", rmse);
+        fmt::print("Relative RMSE     : {:.8e}\n", relativeRMSE);
+        fmt::print("Maximum error     : {:.8e}\n", maxAbsoluteError);
+
+        if(!printIndividualSamples) return;
+
+        fmt::print("\n{:>6} {:>16} {:>16} {:>16}\n", "sample", "function value", "TT prediction", "absError");
+
+        for(std::size_t i = 0; i < predictions.size(); ++i) {
+            const auto &prediction = predictions[i];
+            fmt::print("{:>6} {:>16.8e} {:>16.8e} {:>16.8e}\n", i, prediction.funcvalue, prediction.predicted,
+                       prediction.error);
+        }
+    }
+
     void printFinalResults(const xfac::TensorCI2<double> &ci, const Status &finalStatus,
-                           const SobolReference &reference, const FunctionSamples &functionSamples,
-                           const NodeSamples &nodeSamples, const TargetProgress &progress, int dim,
-                           std::size_t nGridProbes) {
+                           const SobolReference &reference, const std::vector<double> &targets,
+                           const FunctionSamples &functionSamples, const NodeSamples &nodeSamples,
+                           const TargetProgress &progress, int dim, std::size_t nGridProbes) {
         const bool hasExact = hasExactSobolIndices(reference, dim);
         fmt::print("{}\n", finalStatus.stopMsg);
-        if(hasExact) printTargetEvaluations(functionSamples, progress);
+        // if(hasExact) printTargetEvaluations(targets, progress);
+
         fmt::print("\nFinal bond dimensions: {}\nMean: {:.8e}, Variance: {:.8e}\n", finalStatus.bondDims,
                    finalStatus.statistics.mean, finalStatus.statistics.variance);
         printSobolIndices(finalStatus.sobolResult, dim, hasExact);
@@ -110,7 +143,7 @@ namespace sens {
                    nTCI, nNodeSamples, nFunctionSamples, nTCI + nNodeSamples + nFunctionSamples);
     }
     void printGridProbeAccuracy(const NodeSampleError &accuracy) {
-        fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relativeRMSE,
+        fmt::print("Grid samples: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relativeRMSE,
                    accuracy.maxAbsoluteError);
     }
 }
