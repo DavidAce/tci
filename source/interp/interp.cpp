@@ -7,7 +7,7 @@
 
 namespace {
     using namespace interp;
-    sens::Weights calculateBarycentricWeights(const sens::Nodes &nodes) {
+    std::vector<double> calculateBarycentricWeights(const sens::Nodes &nodes) {
         sens::Weights w(nodes.size(), 1.0);
 
         for(std::size_t j = 0; j < nodes.size(); ++j) {
@@ -46,8 +46,8 @@ xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain
             for(std::size_t j = 0; j < nodes.size(); ++j)
                 if(x == nodes[j]) return arma::Mat<double>(core.col(j));
 
-            sens::Nodes coeff(nodes.size());
-            double      denom = 0.0;
+            std::vector<double> coeff(nodes.size());
+            double              denom = 0.0;
 
             for(std::size_t j = 0; j < nodes.size(); ++j) {
                 coeff[j] = w[j] / (x - nodes[j]);

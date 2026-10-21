@@ -10,7 +10,6 @@
 #include <xfac/tensor/tensor_train.h>
 
 namespace sens {
-    // using Grids = std::vector<std::vector<double>>;
 
     // Contract the TT with its conjugate after averaging selected variables.
     double conditional_mean_square(const xfac::TensorTrain<double> &tt, const IntegrationWeights &weights,

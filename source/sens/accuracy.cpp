@@ -1,4 +1,5 @@
 #include "accuracy.hpp"
+#include "func/BaseFunction.hpp"
 #include "grid.hpp"
 #include "interp/interp.hpp"
 #include "samples.hpp"
@@ -55,20 +56,20 @@ sens::FunctionSamples sens::sampleFunctionValues(const BaseFunction &function, c
 }
 
 sens::NodeSampleError sens::measureNodeSampleError(const TensorCI &ci, const NodeSamples &samples,
-                                                   const std::set<std::vector<int>> &insertedPivots) {
+                                                   const std::set<std::vector<int>> &insertedPoints) {
     NodeSampleError accuracy;
     if(samples.empty()) return accuracy;
     double error2 = 0, exact2 = 0, largestUnusedError = -1;
-    for(const auto &probe : samples) {
-        const double error = ci.tt.eval(probe.indices) - probe.value;
-        if(!std::isfinite(error)) throw std::runtime_error("Non-finite grid-probe error");
+    for(const auto &sample : samples) {
+        const double error = ci.tt.eval(sample.indices) - sample.value;
+        if(!std::isfinite(error)) throw std::runtime_error("Non-finite node sample error");
         const double absError = std::abs(error);
         error2 += error * error;
-        exact2 += probe.value * probe.value;
+        exact2 += sample.value * sample.value;
         accuracy.maxAbsoluteError = std::max(accuracy.maxAbsoluteError, absError);
-        if(!insertedPivots.contains(probe.indices) && absError > largestUnusedError) {
+        if(!insertedPoints.contains(sample.indices) && absError > largestUnusedError) {
             largestUnusedError      = absError;
-            accuracy.suggestedPoint = probe.indices;
+            accuracy.suggestedPoint = sample.indices;
         }
     }
     accuracy.rmse         = std::sqrt(error2 / samples.size());

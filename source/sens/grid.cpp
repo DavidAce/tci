@@ -28,16 +28,27 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function, const 
 }
 
 std::vector<double> sens::sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid) {
+    static thread_local std::mt19937_64 rng(987654321);
+
     const int dim = function.dimension();
     if(grid.size() != static_cast<std::size_t>(dim)) throw std::invalid_argument("Grid dimension mismatch");
+
     std::vector<double> point(dim);
+
     for(int k = 0; k < dim; ++k) {
         const auto [lo, hi] = function.domain(k);
         if(!(lo < hi)) throw std::invalid_argument("Invalid domain");
-        do {
-            point[k] = rnd::uniform_double_box(lo, hi);
-        } while(point[k] <= lo || point[k] >= hi ||
-                std::find(grid[k].begin(), grid[k].end(), point[k]) != grid[k].end());
+
+        std::uniform_real_distribution<double> distribution(lo, hi);
+
+        bool accepted = false;
+        while(!accepted) {
+            const double x = distribution(rng);
+
+            accepted = x > lo && x < hi && std::find(grid[k].begin(), grid[k].end(), x) == grid[k].end();
+
+            if(accepted) point[k] = x;
+        }
     }
     return point;
 }

@@ -31,10 +31,9 @@
 namespace sens {
 
     struct AnalysisSettings {
-        static constexpr int    nGridProbes         = 128;
-        static constexpr int    nControlPoints      = 16;
+        static constexpr int    nNodeSamples        = 128;
         static constexpr int    maxRecoveryAttempts = 3;
-        static constexpr double probeTolerance      = 1e-10;
+        static constexpr double nodeSampleTolerance = 1e-10;
     };
 
     struct FunctionEvaluator {
@@ -138,7 +137,7 @@ namespace sens {
         const bool predictionsAccurate =
             std::isfinite(status.predictionRelativeRMSE) && status.predictionRelativeRMSE <= cfg::convTol;
         const bool nodeSamplesAccurate =
-            std::isfinite(nodeError.relativeRMSE) && nodeError.relativeRMSE <= AnalysisSettings::probeTolerance;
+            std::isfinite(nodeError.relativeRMSE) && nodeError.relativeRMSE <= AnalysisSettings::nodeSampleTolerance;
         if(!predictionsAccurate || !nodeSamplesAccurate) return false;
         status.stopMsg = fmt::format("Converged: prediction relRMSE {:.3e}, node relRMSE {:.3e}",
                                      status.predictionRelativeRMSE, nodeError.relativeRMSE);
@@ -158,7 +157,7 @@ namespace sens {
     // A recovery attempt is permitted only if an inaccurate, unused grid pivot is available.
     bool insertRecoveryPivot(TensorCI &ci, Status &status, const NodeSampleError &accuracy, RecoveryState &recovery,
                              int maxSweeps) {
-        if(accuracy.relativeRMSE <= AnalysisSettings::probeTolerance) {
+        if(accuracy.relativeRMSE <= AnalysisSettings::nodeSampleTolerance) {
             status.stopMsg = "Saturated: grid-point error small, but target RMSE not reached";
             return false;
         }
@@ -167,7 +166,7 @@ namespace sens {
             return false;
         }
         if(accuracy.suggestedPoint.empty()) {
-            status.stopMsg = "Saturated: no unused grid-probe pivot available";
+            status.stopMsg = "Saturated: no unused node sample available";
             return false;
         }
         // addPivotsAllBonds and makeCanonical each advance xfac's internal half-sweep counter.
@@ -194,14 +193,14 @@ namespace sens {
         RecoveryState recovery;
         statusLog.emplace_back();
         updateSweepStatus(statusLog.back(), ci, grid, weights, funcSamples, reference, targets, progress);
-        printSweepStatus(statusLog.back(), nullptr, reference);
+        printSweepStatus(statusLog.back(), reference);
         while(statusLog.back().sweeps < maxSweeps) {
             const Status previous = statusLog.back();
             ci.iterate();
             statusLog.push_back(previous);
             Status &current = statusLog.back();
             updateSweepStatus(current, ci, grid, weights, funcSamples, reference, targets, progress);
-            printSweepStatus(current, &previous, reference);
+            printSweepStatus(current, reference);
 
             const auto nodeError = measureNodeSampleError(ci, nodeSamples, recovery.insertedPoints);
             if(hasConverged(current, ci, nodeError)) break;
@@ -213,7 +212,7 @@ namespace sens {
                 statusLog.push_back(beforeRecovery);
                 Status &recovered = statusLog.back();
                 updateSweepStatus(recovered, ci, grid, weights, funcSamples, reference, targets, progress);
-                printSweepStatus(recovered, &beforeRecovery, reference);
+                printSweepStatus(recovered, reference);
                 const auto recoveredAccuracy = measureNodeSampleError(ci, nodeSamples, recovery.insertedPoints);
                 fmt::print("Bond dimensions after recovery: {}\n\n", recovered.bondDims);
                 if(hasConverged(recovered, ci, recoveredAccuracy)) break;
@@ -254,20 +253,19 @@ namespace sens {
         TensorCI          ci(evaluate, nodes, param);
 
         // Samples used to identify missing information on the node grid.
-        const auto nodeSamples = sampleNodePoints(function, nodes, AnalysisSettings::nGridProbes);
+        const auto nodeSamples = sampleNodePoints(function, nodes, AnalysisSettings::nNodeSamples);
         // Independent samples used only to measure prediction accuracy.
         const auto functionSamples = sampleFunctionValues(function, nodes, cfg::nsamples);
 
         TargetProgress      progress(relTolTargets.size());
         std::vector<Status> statusLog;
 
-        printSweepHeader(function, hasExactSobolIndices(reference, function.dimension()));
+        printSweepHeader(function);
         runTCISweeps(ci, nodes, weights, reference, functionSamples, nodeSamples, relTolTargets, maxSweeps, statusLog,
                      progress);
 
         writeStatusLog(h5file, statusLog);
-        printFinalResults(ci, statusLog.back(), reference, relTolTargets, functionSamples, nodeSamples, progress,
-                          function.dimension(), nodeSamples.size());
+        printFinalResults(ci, statusLog.back(), reference, functionSamples, nodeSamples, function.dimension());
 
         const auto predictions = calculatePredictions(ci, nodes, functionSamples);
         printPredictions(predictions);

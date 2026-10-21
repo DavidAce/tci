@@ -1,3 +1,4 @@
+#pragma once
 #include "sens/types.hpp"
 #include <xfac/tensor/tensor_train.h>
 namespace interp {

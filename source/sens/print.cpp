@@ -11,14 +11,14 @@
 #include <xfac/tensor/tensor_ci_2.h>
 namespace sens {
 
-    void printSweepHeader(const BaseFunction &function, bool hasExact) {
+    void printSweepHeader(const BaseFunction &function) {
         fmt::print("\n=== {} (dim={}) ===\n", function.name(), function.dimension());
 
         fmt::print("{:<8} {:>7} {:>9} {:>13} {:>13} {:>13}\n", "method", "sweeps", "nEval", "predRMSE", "predRelRMSE",
                    "sobolRMSE");
     }
 
-    void printSweepStatus(const Status &status, const Status *previous, const SobolReference &reference) {
+    void printSweepStatus(const Status &status, const SobolReference &reference) {
         const bool        hasExact  = hasExactSobolIndices(reference, status.statistics.dim);
         const std::string sobolRMSE = hasExact ? fmt::format("{:.4e}", status.sobolResult.rmse) : "-";
         fmt::print("{:<8} {:>7} {:>9} {:>13.4e} {:>13.4e} {:>13}\n", "TCI2", status.sweeps, status.nEval,
@@ -111,12 +111,10 @@ namespace sens {
     }
 
     void printFinalResults(const xfac::TensorCI2<double> &ci, const Status &finalStatus,
-                           const SobolReference &reference, const std::vector<double> &targets,
-                           const FunctionSamples &functionSamples, const NodeSamples &nodeSamples,
-                           const TargetProgress &progress, int dim, std::size_t nGridProbes) {
+                           const SobolReference &reference, const FunctionSamples &functionSamples,
+                           const NodeSamples &nodeSamples, int dim) {
         const bool hasExact = hasExactSobolIndices(reference, dim);
         fmt::print("{}\n", finalStatus.stopMsg);
-        // if(hasExact) printTargetEvaluations(targets, progress);
 
         fmt::print("\nFinal bond dimensions: {}\nMean: {:.8e}, Variance: {:.8e}\n", finalStatus.bondDims,
                    finalStatus.statistics.mean, finalStatus.statistics.variance);
@@ -142,7 +140,7 @@ namespace sens {
                    "  Subtotal: {}\n",
                    nTCI, nNodeSamples, nFunctionSamples, nTCI + nNodeSamples + nFunctionSamples);
     }
-    void printGridProbeAccuracy(const NodeSampleError &accuracy) {
+    void printNodeSampleError(const NodeSampleError &accuracy) {
         fmt::print("Grid samples: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relativeRMSE,
                    accuracy.maxAbsoluteError);
     }

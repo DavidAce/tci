@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include "func/BaseFunction.hpp"
 #include "quad/quadrature.hpp"
 #include "samples.hpp"
 #include "types.hpp"
