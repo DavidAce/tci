@@ -3,10 +3,18 @@
 #include "quad/quadrature.hpp"
 #include "rnd/rnd.hpp"
 #include "util.hpp"
+#include <algorithm>
+#include <cstddef>
 #include <random>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
-using namespace sens;
+// using namespace sens;
+// using namespace sens::util;
+
+using Grids     = sens::Grids;
+using GridProbe = sens::util::GridProbe;
 
 std::pair<Grids, Grids> sens::makeIntegrationGrids(const BaseFunction &function, const Quadrature &makeQuadrature) {
     const int dim = function.dimension();
@@ -35,7 +43,7 @@ std::vector<double> sens::randomOffGridPoint(const BaseFunction &function, const
     return point;
 }
 
-std::vector<GridProbe> sens::sampleGridProbes(const BaseFunction &function, const Grids &grids, int count) {
+std::vector<GridProbe> sens::sampleGridReferencePoints(const BaseFunction &function, const Grids &grids, int count) {
     std::mt19937_64        rng(123456789); // Separate from the RNG used by TCI.
     std::vector<GridProbe> probes;
     probes.reserve(count);

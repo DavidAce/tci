@@ -1,4 +1,4 @@
-#include "file.hpp"
+#include "hdf5.hpp"
 #include "func/BaseFunction.hpp"
 #include "h5t.hpp"
 #include "util.hpp"
@@ -8,8 +8,8 @@
 namespace sens {
     using namespace util;
 
-    void writeParam(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
-                    const std::vector<double> &targets) {
+    void writeSimulationParameters(h5pp::File &file, const xfac::TensorCI2Param &p, const BaseFunction &f,
+                                 const std::vector<double> &targets) {
         const h5XfacParam     xfacParam{p.bondDim, p.reltol, p.pivot1, p.fullPiv, p.nRookIter, p.useCachedFunction};
         static h5pp::hid::h5t xfacType;
         constexpr const char *xfacPath = "param/xfac";

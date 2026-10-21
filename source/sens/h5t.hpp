@@ -1,3 +1,5 @@
+#pragma once
+
 #include <h5pp/details/h5ppVarr.h>
 
 namespace sens {

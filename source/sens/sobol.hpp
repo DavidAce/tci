@@ -1,10 +1,12 @@
 #pragma once
 
-#include <armadillo>
 #include <h5pp/details/h5ppFstr.h>
 #include <vector>
-#include <xfac/tensor/tensor_train.h>
 
+namespace xfac {
+    template<typename T>
+    class TensorTrain;
+}
 namespace sens {
     using Grids = std::vector<std::vector<double>>;
     struct Statistics {
@@ -55,7 +57,7 @@ namespace sens {
     void appendSobolIndex(std::vector<SobolIndex> &indices, const std::string &name, double estimated, double exact,
                           bool hasExact, double &maxDiff);
 
-    SobolResult calculateSobol(const xfac::TensorTrain<double> &tt, const Grids &weights, const Statistics &statistics,
-                               const SobolReference &reference);
+    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const Grids &weights,
+                                      const Statistics &statistics, const SobolReference &reference);
 
 }

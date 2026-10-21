@@ -1,13 +1,20 @@
 #include "sobol.hpp"
 #include <armadillo>
+#include <cmath>
+#include <cstdlib>
+#include <fmt/core.h>
 #include <h5pp/details/h5ppFstr.h>
+#include <limits>
+#include <stdexcept>
 #include <vector>
+#include <xfac/tensor/tensor_train.h>
 
 namespace sens {
-    using Grids = std::vector<std::vector<double>>;
+    // using Grids = std::vector<std::vector<double>>;
+    using QuadratureWeights = std::vector<std::vector<double>>;
 
     // Contract the TT with its conjugate after averaging selected variables.
-    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const Grids &weights,
+    double conditional_mean_square(const xfac::TensorTrain<double> &tt, const QuadratureWeights &weights,
                                    const std::vector<bool> &integrateOut) {
         const int         dim = static_cast<int>(weights.size());
         arma::Mat<double> G(1, 1, arma::fill::ones);
@@ -49,8 +56,8 @@ namespace sens {
         if(hasExact) maxDiff = std::max(maxDiff, error);
     }
 
-    SobolResult calculateSobol(const xfac::TensorTrain<double> &tt, const Grids &weights, const Statistics &statistics,
-                               const SobolReference &reference) {
+    SobolResult calculateSobolIndices(const xfac::TensorTrain<double> &tt, const QuadratureWeights &weights,
+                                      const Statistics &statistics, const SobolReference &reference) {
         const int    dim      = statistics.dim;
         const bool   hasExact = hasExactSobolIndices(reference, dim);
         const double nan      = std::numeric_limits<double>::quiet_NaN();

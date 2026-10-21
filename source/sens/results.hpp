@@ -14,7 +14,7 @@ namespace sens {
         double                     variance     = 0.0;
         double                     sobolRMSE    = 0.0;
         double                     sobolmaxDiff = 0.0;
-        std::vector<std::uint64_t> bondDimensions;
+        std::vector<std::uint64_t> getTTBondDimensions;
     };
 
     // A complete set of independent continuous-domain test points.

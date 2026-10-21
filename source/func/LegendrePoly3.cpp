@@ -1,4 +1,5 @@
 #include "LegendrePoly3.hpp"
+#include "sens/sobol.hpp"
 #include <cmath>
 #include <stdexcept>
 

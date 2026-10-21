@@ -1,8 +1,9 @@
 #include "sens.hpp"
+#include "accuracy.hpp"
 #include "cfg/cfg.hpp"
-#include "file.hpp"
 #include "func/BaseFunction.hpp"
 #include "grid.hpp"
+#include "hdf5.hpp"
 #include "info/sil.hpp"
 #include "interp/interp.hpp"
 #include "print.hpp"
@@ -26,7 +27,6 @@
 
 namespace sens {
     using namespace util;
-    using TensorCI = xfac::CTensorCI2<double, double>;
 
     struct AnalysisSettings {
         static constexpr int    nGridProbes         = 128;
@@ -35,7 +35,7 @@ namespace sens {
         static constexpr double probeTolerance      = 1e-10;
     };
 
-    std::vector<int> randomInitialPivot(const BaseFunction &function, const Grids &grids) {
+    std::vector<int> selectInitialPivot(const BaseFunction &function, const Grids &grids) {
         if(grids.empty()) throw std::invalid_argument("Empty quadrature grids");
         const int           dim = static_cast<int>(grids.size());
         std::vector<int>    pivot(dim);
@@ -62,12 +62,12 @@ namespace sens {
         param.fullPiv           = false;
         param.useCachedFunction = true;
         param.nRookIter         = 3;
-        param.pivot1            = randomInitialPivot(function, grids);
+        param.pivot1            = selectInitialPivot(function, grids);
         return param;
     }
 
     template<typename TT>
-    Statistics calculateStatistics(const TT &tt, const Grids &weights) {
+    Statistics calculateMoments(const TT &tt, const Grids &weights) {
         Statistics result;
         result.dim      = static_cast<int>(weights.size());
         result.mean     = tt.sum(weights);
@@ -77,61 +77,10 @@ namespace sens {
         return result;
     }
 
-    std::vector<int> bondDimensions(const TensorCI &ci) {
+    std::vector<int> getTTBondDimensions(const TensorCI &ci) {
         std::vector<int> dimensions;
         for(std::size_t k = 0; k + 1 < ci.tt.M.size(); ++k) dimensions.push_back(static_cast<int>(ci.tt.M[k].n_slices));
         return dimensions;
-    }
-
-    ProbeAccuracy assessGridProbes(const TensorCI &ci, const std::vector<GridProbe> &probes,
-                                   const std::set<std::vector<int>> &insertedPivots) {
-        ProbeAccuracy accuracy;
-        if(probes.empty()) return accuracy;
-        double error2 = 0, exact2 = 0, largestUnusedError = -1;
-        for(const auto &probe : probes) {
-            const double error = ci.tt.eval(probe.indices) - probe.exact;
-            if(!std::isfinite(error)) throw std::runtime_error("Non-finite grid-probe error");
-            const double absError = std::abs(error);
-            error2 += error * error;
-            exact2 += probe.exact * probe.exact;
-            accuracy.maxAbsError = std::max(accuracy.maxAbsError, absError);
-            if(!insertedPivots.contains(probe.indices) && absError > largestUnusedError) {
-                largestUnusedError     = absError;
-                accuracy.proposedPivot = probe.indices;
-            }
-        }
-        accuracy.rmse    = std::sqrt(error2 / probes.size());
-        accuracy.relRmse = exact2 > 0 ? std::sqrt(error2 / exact2) : accuracy.rmse;
-        return accuracy;
-    }
-
-    void printGridProbeAccuracy(const ProbeAccuracy &accuracy) {
-        fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relRmse,
-                   accuracy.maxAbsError);
-    }
-
-    ConvergenceData sampleOffGridControlPoints(const BaseFunction &function, const Grids &grids, int count) {
-        ConvergenceData data;
-        data.points.reserve(count);
-        data.values.reserve(count);
-        for(int i = 0; i < count; ++i) {
-            auto point = randomOffGridPoint(function, grids);
-            data.values.push_back(function.evaluate(point));
-            data.points.push_back(std::move(point));
-        }
-        return data;
-    }
-
-    double offGridPredictionRMSE(const TensorCI &ci, const Grids &grids, const ConvergenceData &control) {
-        if(control.points.empty()) return std::numeric_limits<double>::quiet_NaN();
-        if(control.points.size() != control.values.size()) throw std::runtime_error("Control-point size mismatch");
-        const auto ctt    = interp::interpolateTT(ci.tt, grids);
-        double     error2 = 0;
-        for(std::size_t i = 0; i < control.points.size(); ++i) {
-            const double error = ctt.eval(control.points[i]) - control.values[i];
-            error2 += error * error;
-        }
-        return std::sqrt(error2 / control.points.size());
     }
 
     bool approximatelyEqual(double a, double b, double tolerance) {
@@ -152,37 +101,29 @@ namespace sens {
         return true;
     }
 
-    void recordTargetEvaluations(TargetProgress &progress, const std::vector<double> &targets, const Status &status) {
+    void recordReachedAccuracyTargets(TargetProgress &progress, const std::vector<double> &targets,
+                                      const Status &status) {
         if(!std::isfinite(status.sobolResult.rmse)) return;
         for(std::size_t i = 0; i < targets.size(); ++i)
             if(progress.firstEval[i] == 0 && status.sobolResult.rmse <= targets[i])
                 progress.firstEval[i] = static_cast<std::size_t>(status.nEval);
     }
 
-    void updateAndPrintStatus(Status &status, const Status *previous, const TensorCI &ci, const Grids &weights,
-                              const SobolReference &reference, const std::vector<double> &targets,
-                              TargetProgress &progress) {
+    void updateSweepStatus(Status &status, const TensorCI &ci, const Grids &weights, const SobolReference &reference,
+                           const std::vector<double> &targets, TargetProgress &progress) {
         status.sweeps      = ci.cIter - 1; // xfac constructs the TT with one initial half-sweep.
         status.nEval       = static_cast<int>(ci.f.nEval());
-        status.bondDims    = bondDimensions(ci);
-        status.statistics  = calculateStatistics(ci.tt, weights);
-        status.sobolResult = calculateSobol(ci.tt, weights, status.statistics, reference);
+        status.bondDims    = getTTBondDimensions(ci);
+        status.statistics  = calculateMoments(ci.tt, weights);
+        status.sobolResult = calculateSobolIndices(ci.tt, weights, status.statistics, reference);
         if(hasExactSobolIndices(reference, status.statistics.dim)) {
-            fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", status.sweeps, status.nEval,
-                       status.sobolResult.rmse, status.sobolResult.maxDiff);
-            recordTargetEvaluations(progress, targets, status);
-        } else {
-            const double      delta     = previous ? maximumSobolChange(status.sobolResult, previous->sobolResult)
-                                                   : std::numeric_limits<double>::quiet_NaN();
-            const std::string deltaText = std::isfinite(delta) ? fmt::format("{:.3e}", delta) : "-";
-            fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", status.sweeps, status.nEval,
-                       status.statistics.mean, status.statistics.variance, deltaText);
+            recordReachedAccuracyTargets(progress, targets, status);
         }
     }
 
     // Return true only when both the requested accuracy and independent grid accuracy are satisfactory.
-    bool convergenceReached(Status &status, const TensorCI &ci, const Grids &grids, const ConvergenceData &control,
-                            bool hasExact, const ProbeAccuracy &probes) {
+    bool hasConverged(Status &status, const TensorCI &ci, const Grids &grids, const ConvergenceData &control,
+                      bool hasExact, const ProbeAccuracy &probes) {
         if(!ci.isDone()) return false;
         const double rmse = hasExact ? status.sobolResult.rmse : offGridPredictionRMSE(ci, grids, control);
         if(!std::isfinite(rmse) || rmse > cfg::convTol || probes.relRmse > AnalysisSettings::probeTolerance)
@@ -192,7 +133,7 @@ namespace sens {
     }
 
     // Return true when the current TT has stopped changing and recovery should be considered.
-    bool saturationDetected(Status &current, const Status &previous, const TensorCI &ci) {
+    bool hasStagnated(Status &current, const Status &previous, const TensorCI &ci) {
         if(!ci.isDone()) {
             current.sweepsUnchanged = 0;
             return false;
@@ -202,8 +143,8 @@ namespace sens {
     }
 
     // A recovery attempt is permitted only if an inaccurate, unused grid pivot is available.
-    bool recoverFromSaturation(TensorCI &ci, Status &status, const ProbeAccuracy &accuracy, RecoveryState &recovery,
-                               int maxSweeps) {
+    bool insertRecoveryPivot(TensorCI &ci, Status &status, const ProbeAccuracy &accuracy, RecoveryState &recovery,
+                             int maxSweeps) {
         if(accuracy.relRmse <= AnalysisSettings::probeTolerance) {
             status.stopMsg = "Saturated: grid-point error small, but target RMSE not reached";
             return false;
@@ -233,34 +174,38 @@ namespace sens {
     }
 
     void runTCISweeps(TensorCI &ci, const Grids &grids, const Grids &weights, const SobolReference &reference,
-                      const ConvergenceData &control, const std::vector<GridProbe> &gridProbes,
+                      const ConvergenceData &control, const std::vector<util::GridProbe> &gridProbes,
                       const std::vector<double> &targets, int maxSweeps, std::vector<Status> &statusLog,
                       TargetProgress &progress) {
         const bool    hasExact = hasExactSobolIndices(reference, static_cast<int>(grids.size()));
         RecoveryState recovery;
         statusLog.emplace_back();
-        updateAndPrintStatus(statusLog.back(), nullptr, ci, weights, reference, targets, progress);
+        updateSweepStatus(statusLog.back(), ci, weights, reference, targets, progress);
+        printSweepStatus(statusLog.back(), nullptr, reference);
         while(statusLog.back().sweeps < maxSweeps) {
             const Status previous = statusLog.back();
             ci.iterate();
             statusLog.push_back(previous);
             Status &current = statusLog.back();
-            updateAndPrintStatus(current, &previous, ci, weights, reference, targets, progress);
-            auto accuracy = assessGridProbes(ci, gridProbes, recovery.insertedPivots);
+            updateSweepStatus(current, ci, weights, reference, targets, progress);
+            printSweepStatus(current, &previous, reference);
+
+            auto accuracy = measureGridApproximationError(ci, gridProbes, recovery.insertedPivots);
             // printGridProbeAccuracy(accuracy);
-            if(convergenceReached(current, ci, grids, control, hasExact, accuracy)) break;
-            if(saturationDetected(current, previous, ci)) {
+            if(hasConverged(current, ci, grids, control, hasExact, accuracy)) break;
+            if(hasStagnated(current, previous, ci)) {
                 fmt::print("\n=== TCI saturation detected ===\n");
-                if(!recoverFromSaturation(ci, current, accuracy, recovery, maxSweeps)) break;
+                if(!insertRecoveryPivot(ci, current, accuracy, recovery, maxSweeps)) break;
                 // Record the post-recovery TT as a separate status rather than overwrite a sweep.
                 const Status beforeRecovery = current;
                 statusLog.push_back(beforeRecovery);
                 Status &recovered = statusLog.back();
-                updateAndPrintStatus(recovered, &beforeRecovery, ci, weights, reference, targets, progress);
-                const auto recoveredAccuracy = assessGridProbes(ci, gridProbes, recovery.insertedPivots);
+                updateSweepStatus(recovered, ci, weights, reference, targets, progress);
+                printSweepStatus(recovered, &beforeRecovery, reference);
+                const auto recoveredAccuracy = measureGridApproximationError(ci, gridProbes, recovery.insertedPivots);
                 // printGridProbeAccuracy(recoveredAccuracy);
                 fmt::print("Bond dimensions after recovery: {}\n\n", recovered.bondDims);
-                if(convergenceReached(recovered, ci, grids, control, hasExact, recoveredAccuracy)) break;
+                if(hasConverged(recovered, ci, grids, control, hasExact, recoveredAccuracy)) break;
             }
         }
         if(statusLog.back().stopMsg.empty())
@@ -294,16 +239,16 @@ namespace sens {
         auto h5file = h5pp::File(fmt::format("{}/{}.h5", cfg::outdir, function.name()), h5pp::FileAccess::REPLACE);
         auto [grids, weights] = makeIntegrationGrids(function, makeQuadrature);
         auto param            = makeTCIParameters(function, grids, bondDim);
-        writeParam(h5file, param, function, relTolTargets);
+        writeSimulationParameters(h5file, param, function, relTolTargets);
 
         FunctionEvaluator evaluate{function};
         TensorCI          ci(evaluate, grids, param);
 
-        const auto          gridProbes = sampleGridProbes(function, grids, AnalysisSettings::nGridProbes);
-        const auto          control    = hasExactSobolIndices(reference, function.dimension())
-                                             ? ConvergenceData{}
-                                             : sampleOffGridControlPoints(function, grids, AnalysisSettings::nControlPoints);
-        TargetProgress      progress(relTolTargets.size());
+        const auto     gridProbes = sampleGridReferencePoints(function, grids, AnalysisSettings::nGridProbes);
+        const auto     control    = hasExactSobolIndices(reference, function.dimension())
+                                        ? ConvergenceData{}
+                                        : sampleOffGridControlPoints(function, grids, AnalysisSettings::nControlPoints);
+        TargetProgress progress(relTolTargets.size());
         std::vector<Status> statusLog;
         printSweepHeader(function, hasExactSobolIndices(reference, function.dimension()));
         runTCISweeps(ci, grids, weights, reference, control, gridProbes, relTolTargets, maxSweeps, statusLog, progress);

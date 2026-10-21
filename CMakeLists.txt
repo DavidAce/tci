@@ -31,7 +31,8 @@ add_executable(TCI
         source/func/LegendrePoly3.cpp
         source/func/NonlinearPolynomial.cpp
         source/func/PermutedFunction.cpp
-        source/sens/file.cpp
+        source/sens/accuracy.cpp
+        source/sens/hdf5.cpp
         source/sens/sens.cpp
         source/sens/sobol.cpp
         source/sens/grid.cpp

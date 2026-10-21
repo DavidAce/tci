@@ -1,5 +1,6 @@
 #include "func/NonlinearPolynomial.hpp"
 #include "LegendrePoly3.hpp"
+#include "sens/sobol.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string_view>

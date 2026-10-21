@@ -13,7 +13,18 @@ namespace sens {
             fmt::print("{:<11} {:>6} {:>8} {:>14} {:>14} {:>12}\n", "method", "sweeps", "nEval", "mean", "variance",
                        "maxDeltaS");
     }
-
+    void printSweepStatus(Status &status, const Status *previous, const SobolReference &reference) {
+        if(hasExactSobolIndices(reference, status.statistics.dim)) {
+            fmt::print("{:<11} {:>6} {:>8} {:>12.4e} {:>12.4e}\n", "TCI2", status.sweeps, status.nEval,
+                       status.sobolResult.rmse, status.sobolResult.maxDiff);
+        } else {
+            const double      delta     = previous ? maximumSobolChange(status.sobolResult, previous->sobolResult)
+                                                   : std::numeric_limits<double>::quiet_NaN();
+            const std::string deltaText = std::isfinite(delta) ? fmt::format("{:.3e}", delta) : "-";
+            fmt::print("{:<11} {:>6} {:>8} {:>14.6e} {:>14.6e} {:>12}\n", "TCI2", status.sweeps, status.nEval,
+                       status.statistics.mean, status.statistics.variance, deltaText);
+        }
+    }
     void printTargetEvaluations(const std::vector<double> &targets, const TargetProgress &progress) {
         fmt::print("\n{:>12} {:>12}\n", "Target RMSE", "nEval");
         for(std::size_t i = 0; i < targets.size(); ++i) {
@@ -96,5 +107,8 @@ namespace sens {
                    "  Combined subtotal: {}\n",
                    finalStatus.nEval, nGridProbes, finalStatus.nEval + nGridProbes);
     }
-
+    void printGridProbeAccuracy(const ProbeAccuracy &accuracy) {
+        fmt::print("Grid probes: RMSE={:.4e}, relRMSE={:.4e}, maxAbs={:.4e}\n", accuracy.rmse, accuracy.relRmse,
+                   accuracy.maxAbsError);
+    }
 }

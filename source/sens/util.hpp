@@ -9,7 +9,6 @@
 
 namespace sens::util {
 
-
     struct Status {
         int              sweeps             = 0;
         int              sweepsUnchanged    = 0;

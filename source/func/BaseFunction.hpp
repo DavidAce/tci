@@ -1,8 +1,10 @@
 #pragma once
-#include "sens/sobol.hpp"
 #include <string_view>
 #include <utility>
 #include <vector>
+namespace sens {
+    struct SobolReference;
+}
 
 class BaseFunction {
     public:

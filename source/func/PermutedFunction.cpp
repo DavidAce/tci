@@ -1,4 +1,5 @@
 #include "PermutedFunction.hpp"
+#include "sens/sobol.hpp"
 #include <algorithm>
 #include <array>
 #include <numeric>
