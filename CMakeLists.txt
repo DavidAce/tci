@@ -26,6 +26,7 @@ endif()
 ### Add all source files
 add_executable(TCI
         source/main.cpp
+        source/cfg/inputs.cpp
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
         source/func/LegendrePoly3.cpp
@@ -60,6 +61,7 @@ find_package(nanobench  4.3.11  REQUIRED)
 find_package(CLI11      2.7.2   REQUIRED)
 find_package(xfac               REQUIRED)
 # find_package(BLAS               REQUIRED)
+find_package(tomlplusplus 3.4.0 REQUIRED)
 
 ### Create a helper target that links dependencies (this target can be used to build tests and benchmarks)
 add_library(tci-libs INTERFACE)
@@ -73,6 +75,7 @@ target_link_libraries(tci-libs INTERFACE doctest::doctest)
 target_link_libraries(tci-libs INTERFACE nanobench::nanobench)
 target_link_libraries(tci-libs INTERFACE CLI11::CLI11)
 target_link_libraries(tci-libs INTERFACE xfac::xfac)
+target_link_libraries(tci-libs INTERFACE tomlplusplus::tomlplusplus)
 
 if(TCI_ENABLE_OPENMP)
     find_package(OpenMP COMPONENTS CXX REQUIRED)

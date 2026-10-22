@@ -9,6 +9,7 @@
     {
       "name": "default",
       "hidden": true,
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "TCI_ENABLE_OPENMP": "TRUE",
@@ -65,20 +66,12 @@
     {
       "name": "Release",
       "displayName": "Release|march=native|LTO|conan package manager",
-      "inherits": [
-        "release",
-        "conan",
-        "default"
-      ]
+      "inherits": ["release", "conan", "default"]
     },
     {
       "name": "Debug",
       "displayName": "Debug|conan package manager",
-      "inherits": [
-        "debug",
-        "conan",
-        "default"
-      ]
+      "inherits": ["debug", "conan", "default"]
     }
   ],
   "buildPresets": [

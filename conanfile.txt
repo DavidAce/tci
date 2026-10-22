@@ -7,6 +7,7 @@ pcg-cpp/cci.20220409        # For random number generation
 doctest/2.5.3              # For unit tests
 nanobench/4.3.11            # For benchmarking
 cli11/2.7.2                 # For parsing command line arguments
+tomlplusplus/3.4.0
 
 [generators]
 CMakeDeps

@@ -1,0 +1,11 @@
+[function]
+name = ishigami
+dimension = 3
+
+[defaults]
+type = "continuous"
+nodes = { rule = "gk15", count = 15 }
+
+[[parameter_groups]]
+select = ["x1-x3"]
+domain = [-3.141592653589793, 3.141592653589793]

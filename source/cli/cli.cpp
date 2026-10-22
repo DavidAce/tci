@@ -1,5 +1,6 @@
 #include "cli.hpp"
 #include "cfg/cfg.hpp"
+#include "cfg/inputs.hpp"
 #include "CLI/CLI.hpp"
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
@@ -37,6 +38,7 @@ namespace cli {
             ->delimiter(',')
             ->allow_extra_args(false)
             ->check(CLI::PositiveNumber);
+        app.add_option("--input", input, "Path to a toml-file describing the input parameters of the function");
         try {
             app.parse(argc, argv);
         } catch(const CLI::ParseError &e) { std::exit(app.exit(e)); }
@@ -45,6 +47,10 @@ namespace cli {
             throw std::invalid_argument(
                 fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
         if(quadratureRuleName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
+
+        if(!cfg::input.empty()){
+            readInputConfiguration(input);
+        }
     }
 
 }

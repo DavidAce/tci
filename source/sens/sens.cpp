@@ -21,7 +21,6 @@
 #include <fmt/ranges.h>
 #include <h5pp/h5pp.h>
 #include <H5Tpublic.h>
-#include <limits>
 #include <set>
 #include <stdexcept>
 #include <string>
