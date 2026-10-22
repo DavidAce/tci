@@ -19,3 +19,8 @@ foreach (test ${TESTS})
     target_link_libraries(${test} PRIVATE tci-libs)
     add_test(NAME ${test} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} COMMAND ${test})
 endforeach ()
+
+add_executable(test-inputs test_inputs.cpp ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp)
+target_include_directories(test-inputs PRIVATE ${CMAKE_SOURCE_DIR}/source)
+target_link_libraries(test-inputs PRIVATE tci-libs)
+add_test(NAME test-inputs COMMAND test-inputs ${CMAKE_SOURCE_DIR}/input/ishigami.toml)

@@ -35,18 +35,18 @@ def exact_sobol():
     a, b = 7.0, 0.1
     p = math.pi
     variance = 0.5 + a*a/8 + b*p**4/5 + b*b*p**8/18
-    s1 = (0.5 + b*p**4/5 + b*b*p**8/50) / variance
-    s2 = (a*a/8) / variance
-    s13 = (8*b*b*p**8/225) / variance
-    return dict(zip(("S1", "S2", "S3", "ST1", "ST2", "ST3", "S1,3"),
-                    (s1, s2, 0.0, 1.0-s2, s2, s13, s13)))
+    s_x0 = (0.5 + b*p**4/5 + b*b*p**8/50) / variance
+    s_x1 = (a*a/8) / variance
+    s_x0_x2 = (8*b*b*p**8/225) / variance
+    return dict(zip(("S0", "S1", "S2", "ST0", "ST1", "ST2", "S0,2"),
+                    (s_x0, s_x1, 0.0, 1.0-s_x1, s_x1, s_x0_x2, s_x0_x2)))
 
 
 def indices(result):
     """Order matches the seven indices reported in the C++ Ishigami benchmark."""
     if len(result["S1"]) != 3 or len(result["ST"]) != 3:
         raise ValueError("Expected three-variable Ishigami results")
-    return dict(zip(("S1", "S2", "S3", "ST1", "ST2", "ST3", "S1,3"),
+    return dict(zip(("S0", "S1", "S2", "ST0", "ST1", "ST2", "S0,2"),
                     (*result["S1"], *result["ST"], result["S2"][0][2])))
 
 
@@ -91,7 +91,7 @@ def print_gp(args):
     print("\n=== Benjamin's Ishigami results ===")
     print("Ishigami: a=7, b=0.1; independent uniform inputs on [-pi,pi]^3")
     print("Reference file: " + args.json)
-    print("Seven-index error: S1, S2, S3, ST1, ST2, ST3, S1,3")
+    print("Seven-index error: S0, S1, S2, ST0, ST1, ST2, S0,2")
     print_table("SALib direct", direct, sizes, reference, args.show_indices)
     print_table("GP surrogate", gp, sizes, reference, args.show_indices)
 

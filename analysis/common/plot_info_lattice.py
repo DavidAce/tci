@@ -36,7 +36,7 @@ def plot_info_lattice(il, *, logarithmic=False, vmin=1e-5, vmax=1.0, cmap='Green
     scale, start = np.indices((d, d))
     valid = (scale + start) < d
     ell, a = scale[valid], start[valid]
-    x = a + ell / 2 + 1               # variable indices are 1-based on the axis
+    x = a + ell / 2                   # zero-based variable indices
     y = ell * np.sqrt(3) / 2         # equilateral triangular lattice
     values = il[valid]
 
@@ -56,9 +56,9 @@ def plot_info_lattice(il, *, logarithmic=False, vmin=1e-5, vmax=1.0, cmap='Green
                       marker='o', s=size, edgecolors='black', linewidths=0.6)
 
     ax.set_aspect('equal')
-    ax.set_xlim(0.5, d + 0.5)
+    ax.set_xlim(-0.5, d - 0.5)
     ax.set_ylim(-0.4, (d - 1) * np.sqrt(3) / 2 + 0.6)
-    ax.set_xticks(np.arange(1, d + 1))
+    ax.set_xticks(np.arange(d))
     ax.set_yticks(np.arange(d) * np.sqrt(3) / 2,
                   labels=np.arange(d))
     ax.set_xlabel('Parameter index')

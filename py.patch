@@ -1,0 +1,266 @@
+diff --git a/source/cfg/inputs.cpp b/source/cfg/inputs.cpp
+--- a/source/cfg/inputs.cpp
++++ b/source/cfg/inputs.cpp
+@@ -5,6 +5,7 @@
+ #include <algorithm>
+ #include <array>
+ #include <charconv>
++#include <cctype>
+ #include <cmath>
+ #include <cstdint>
+ #include <fmt/format.h>
+@@ -104,39 +105,90 @@
+             if(source.nodes) target.nodes = source.nodes;
+         }
+ 
+-        std::size_t parseOneBasedIndex(std::string_view token, std::size_t count) {
+-            if(token.empty() || token.front() != 'x')
+-                fail("select", fmt::format("expected an input name like x3, got '{}'", token));
+-            std::size_t index     = 0;
+-            const char *first     = token.data() + 1;
+-            const char *last      = token.data() + token.size();
+-            const auto [ptr, err] = std::from_chars(first, last, index);
+-            if(err != std::errc{} || ptr != last || index == 0 || index > count)
+-                fail("select", fmt::format("input '{}' is invalid or outside x1-x{}", token, count));
+-            return index - 1;
+-        }
+-
+-        std::vector<std::size_t> parseParameterSelection(const toml::table &table, std::size_t count) {
++        // Python-style selectors: index, start:stop, or start:stop:step.
++        // Indices are zero-based, stops are exclusive, and strides are positive.
++        std::uint64_t parseSelectionInteger(std::string_view token) {
++            if(token.empty()) fail("select", "empty integer in selector");
++            std::uint64_t value = 0;
++            const auto [ptr, ec] = std::from_chars(token.data(), token.data() + token.size(), value);
++            if(ec != std::errc{} || ptr != token.data() + token.size())
++                fail("select", fmt::format("invalid nonnegative integer '{}'", token));
++            return value;
++        }
++
++        std::vector<std::uint64_t> parseParameterSelection(const toml::table &table, std::size_t count) {
+             const auto &node  = getRequiredNode(table, "select", "parameter_groups");
+             const auto *array = node.as_array();
+-            if(!array || array->empty()) fail("select", "expected a nonempty array of input names or ranges");
+-            std::vector<std::size_t> selection;
+-            std::vector<bool>        seen(count, false);
++            if(!array || array->empty()) fail("select", "expected a nonempty array of strings");
++
++            // Join strings, remove whitespace, and accept only digits, commas and colons.
++            std::string expression;
+             for(const auto &entry : *array) {
+-                const auto selector = entry.value<std::string>();
+-                if(!selector) fail("select", "each selector must be a string");
+-                const auto hyphen = selector->find('-');
+-                const auto start  = parseOneBasedIndex(std::string_view(*selector).substr(0, hyphen), count);
+-                const auto stop   = hyphen == std::string::npos
+-                                        ? start
+-                                        : parseOneBasedIndex(std::string_view(*selector).substr(hyphen + 1), count);
+-                if(start > stop) fail("select", fmt::format("reversed range '{}'", *selector));
+-                for(std::size_t index = start; index <= stop; ++index) {
+-                    if(seen[index]) fail("select", fmt::format("input x{} selected twice in one group", index + 1));
+-                    seen[index] = true;
+-                    selection.push_back(index);
++                const auto part = entry.value<std::string>();
++                if(!part || part->empty()) fail("select", "each selector must be a nonempty string");
++                if(!expression.empty()) expression += ',';
++                expression += *part;
++            }
++            expression.erase(std::remove_if(expression.begin(), expression.end(),
++                                            [](unsigned char c) { return std::isspace(c) != 0; }),
++                             expression.end());
++            if(expression.empty() || std::any_of(expression.begin(), expression.end(), [](unsigned char c) {
++                   return !std::isdigit(c) && c != ',' && c != ':';
++               }))
++                fail("select", "only nonnegative integers, commas and colons are allowed");
++
++            std::vector<std::uint64_t> selection;
++            std::vector<bool>          seen(count, false);
++            const auto append = [&](std::uint64_t index) {
++                if(index >= count)
++                    fail("select", fmt::format("index {} is outside [0, {})", index, count));
++                if(seen[static_cast<std::size_t>(index)])
++                    fail("select", fmt::format("index {} is selected more than once", index));
++                seen[static_cast<std::size_t>(index)] = true;
++                selection.push_back(index);
++            };
++
++            const std::string_view text = expression;
++            std::size_t            offset = 0;
++            while(offset < text.size()) {
++                const auto comma = text.find(',', offset);
++                const auto item = text.substr(offset, comma == std::string_view::npos ? comma : comma - offset);
++                if(item.empty()) fail("select", "empty selector between commas");
++
++                const auto colon = item.find(':');
++                if(colon == std::string_view::npos) {
++                    append(parseSelectionInteger(item));
++                } else {
++                    const auto second = item.find(':', colon + 1);
++                    if(second != std::string_view::npos && item.find(':', second + 1) != std::string_view::npos)
++                        fail("select", fmt::format("too many ':' in '{}'", item));
++
++                    const auto startText = item.substr(0, colon);
++                    const auto stopText = item.substr(colon + 1, second == std::string_view::npos
++                                                                        ? second : second - colon - 1);
++                    const auto stepText = second == std::string_view::npos ? std::string_view{} : item.substr(second + 1);
++                    const std::uint64_t start = startText.empty() ? 0 : parseSelectionInteger(startText);
++                    const std::uint64_t stop  = stopText.empty() ? count : parseSelectionInteger(stopText);
++                    const std::uint64_t step  = stepText.empty() ? 1 : parseSelectionInteger(stepText);
++
++                    if(step == 0) fail("select", "slice step cannot be zero");
++                    if(start > count || stop > count)
++                        fail("select", fmt::format("slice '{}' exceeds parameter count {}", item, count));
++                    if(start > stop)
++                        fail("select", fmt::format("descending slice '{}' requires a negative step (not supported)", item));
++
++                    for(std::uint64_t index = start; index < stop;) {
++                        append(index);
++                        if(step >= stop - index) break; // Prevent uint64_t overflow.
++                        index += step;
++                    }
+                 }
+-            }
++
++                if(comma == std::string_view::npos) break;
++                offset = comma + 1;
++                if(offset == text.size()) fail("select", "trailing comma");
++            }
++            if(selection.empty()) fail("select", "selector list selects no parameters");
+             return selection;
+         }
+ 
+@@ -169,7 +221,7 @@
+                 const auto overridesTable = readParameterConfigurations(*group, where, TableType::Group);
+                 for(const auto index : parseParameterSelection(*group, dimension)) {
+                     if(groupAssigned[index])
+-                        fail(where, fmt::format("input x{} is assigned by multiple groups", index + 1));
++                        fail(where, fmt::format("input x{} is assigned by multiple groups", index));
+                     groupAssigned[index] = true;
+                     applyOverrides(resolved[index], overridesTable);
+                 }
+@@ -180,7 +232,7 @@
+         configuration.parameters.reserve(dimension);
+         for(std::size_t i = 0; i < dimension; ++i) {
+             const auto &p = resolved[i];
+-            const auto name = fmt::format("x{}", i + 1);
++            const auto name = fmt::format("x{}", i);
+             if(!p.type) fail(name, "missing type after applying defaults and group overrides");
+             if(*p.type != "continuous")
+                 fail(name, fmt::format("type '{}' is not implemented in stage 1", *p.type));
+diff --git a/input/ishigami.toml b/input/ishigami.toml
+--- a/input/ishigami.toml
++++ b/input/ishigami.toml
+@@ -1,5 +1,5 @@
+ [function]
+-name = ishigami
++name = "ishigami"
+ dimension = 3
+ 
+ [defaults]
+@@ -7,5 +7,5 @@
+ nodes = { rule = "gk15", count = 15 }
+ 
+ [[parameter_groups]]
+-select = ["x1-x3"]
++select = ["0:3"]
+ domain = [-3.141592653589793, 3.141592653589793]
+diff --git a/tests/test_inputs.cpp b/tests/test_inputs.cpp
+--- a/tests/test_inputs.cpp
++++ b/tests/test_inputs.cpp
+@@ -1,6 +1,10 @@
+ #include "cfg/inputs.hpp"
+ 
++#include <algorithm>
+ #include <cmath>
++#include <filesystem>
++#include <fstream>
++#include <vector>
+ #include <stdexcept>
+ #include <string>
+ #include <variant>
+@@ -17,7 +21,7 @@
+     require(inputs.parameters.size() == 3, "expected three input parameters");
+     for(int k = 0; k < 3; ++k) {
+         const auto &parameter = inputs.parameters[k];
+-        require(parameter.name == "x" + std::to_string(k + 1), "incorrect input name");
++        require(parameter.name == "x" + std::to_string(k), "incorrect input name");
+         const auto *continuous = std::get_if<cfg::ContinuousParameter>(&parameter.specification);
+         require(continuous != nullptr, "expected continuous parameter");
+         require(std::abs(continuous->domain[0] + 3.141592653589793) < 1e-14, "invalid lower bound");
+@@ -25,4 +29,53 @@
+         const auto *nodes = std::get_if<cfg::GeneratedNodes>(&continuous->nodes);
+         require(nodes && nodes->rule == "gk15" && nodes->count == 15, "incorrect node rule");
+     }
++
++    // Mixed comma-separated indices, half-open slices, omitted bounds and strides.
++    const auto path = std::filesystem::current_path() / "tci_test_python_selectors.toml";
++    {
++        std::ofstream out(path);
++        require(static_cast<bool>(out), "cannot create selector test file");
++        out << R"([function]
++name = "selector-test"
++dimension = 29
++
++[defaults]
++type = "continuous"
++domain = [-1.0, 1.0]
++nodes = { rule = "gk15", count = 15 }
++
++[[parameter_groups]]
++select = ["0:3", "6,8,9", "10", "11", "14:19,20 , 22", "23:28:2"]
++domain = [-2.0, 2.0]
++)";
++    }
++    const auto mixed = cfg::readInputConfiguration(path);
++    const std::vector<int> expected{0, 1, 2, 6, 8, 9, 10, 11, 14, 15, 16, 17, 18, 20, 22, 23, 25, 27};
++    require(mixed.parameters.size() == 29, "expected 29 input parameters");
++    for(std::size_t i = 0; i < mixed.parameters.size(); ++i) {
++        const auto *continuous = std::get_if<cfg::ContinuousParameter>(&mixed.parameters[i].specification);
++        require(continuous != nullptr, "expected continuous input");
++        const bool selected = std::find(expected.begin(), expected.end(), static_cast<int>(i)) != expected.end();
++        require(continuous->domain[0] == (selected ? -2.0 : -1.0), "incorrect mixed selector expansion");
++    }
++
++    // Duplicates must not be silently accepted.
++    {
++        std::ofstream out(path);
++        out << R"([function]
++name = "selector-test"
++dimension = 3
++[defaults]
++type = "continuous"
++domain = [-1.0, 1.0]
++nodes = { rule = "gk15", count = 15 }
++[[parameter_groups]]
++select = ["0:3", "2"]
++)";
++    }
++    bool rejected = false;
++    try { (void) cfg::readInputConfiguration(path); }
++    catch(const std::invalid_argument &) { rejected = true; }
++    require(rejected, "duplicate selection should be rejected");
++    std::filesystem::remove(path);
+ }
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -19,3 +19,8 @@
+     target_link_libraries(${test} PRIVATE tci-libs)
+     add_test(NAME ${test} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} COMMAND ${test})
+ endforeach ()
++
++add_executable(test-inputs test_inputs.cpp ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp)
++target_include_directories(test-inputs PRIVATE ${CMAKE_SOURCE_DIR}/source)
++target_link_libraries(test-inputs PRIVATE tci-libs)
++add_test(NAME test-inputs COMMAND test-inputs ${CMAKE_SOURCE_DIR}/input/ishigami.toml)
+diff --git a/source/cfg/inputs.hpp b/source/cfg/inputs.hpp
+--- a/source/cfg/inputs.hpp
++++ b/source/cfg/inputs.hpp
+@@ -39,6 +39,6 @@
+     using ParameterSpecification = std::variant<ContinuousParameter, IntegerParameter, CategoricalParameter>;
+ 
+     struct InputParameter {
+-        std::string name; // x1, x2, ... refer to original input identities.
++        std::string name; // x0, x1, ... refer to original input identities (zero-based).
+         ParameterSpecification specification;
+     };

@@ -41,11 +41,13 @@ namespace cfg {
     using ParameterSpecification = std::variant<ContinuousParameter, IntegerParameter, CategoricalParameter>;
 
     struct InputParameter {
-        std::string            name; // x1, x2, ... refer to original input identities.
+        std::string            name; // x0, x1, ... refer to original input identities.
         ParameterSpecification specification;
     };
 
     struct InputConfiguration {
+        std::string                 functionName;
+        int                         dimension;
         std::vector<InputParameter> parameters;
     };
 

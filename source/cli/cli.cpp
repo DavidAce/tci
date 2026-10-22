@@ -4,6 +4,7 @@
 #include "CLI/CLI.hpp"
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
+#include <stdexcept>
 namespace cli {
 
     void parse(int argc, char **argv) {
@@ -48,8 +49,16 @@ namespace cli {
                 fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
         if(quadratureRuleName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
 
-        if(!cfg::input.empty()){
-            readInputConfiguration(input);
+        if(!cfg::input.empty()) {
+            auto configuration = readInputConfiguration(input);
+            if(functionName.empty())
+                functionName = configuration.functionName;
+            else if(!configuration.functionName.empty() && functionName != configuration.functionName) {
+                throw std::invalid_argument(fmt::format("Function name mismatch:\n"
+                                                        "    cli: --function       = {}\n"
+                                                        "    toml: [function].name = {} [{}]\n",
+                                                        cfg::functionName, configuration.functionName, cfg::input));
+            }
         }
     }
 

@@ -109,10 +109,10 @@ def sobol_names(function):
     dim = function.dim
 
     names = (
-        [f"S{i+1}" for i in range(dim)]
-        + [f"ST{i+1}" for i in range(dim)]
+        [f"S{i}" for i in range(dim)]
+        + [f"ST{i}" for i in range(dim)]
         + [
-            f"S{i+1},{j+1}"
+            f"S{i},{j}"
             for i, j in function.sobol_pairs
         ]
     )

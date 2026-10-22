@@ -9,25 +9,25 @@ class ishigami:
         self.dim = 3
         self.problem = {
             "num_vars": self.dim,
-            "names": ["x1", "x2", "x3"],
+            "names": ["x0", "x1", "x2"],
             "bounds": [[-np.pi, np.pi]] * self.dim,
         }
-        self.V1 = 0.5 * (1 + b * np.pi**4 / 5)**2
-        self.V2 = a**2 / 8
-        self.V13 = 8 * b**2 * np.pi**8 / 225
-        self.V = self.V1 + self.V2 + self.V13
+        self.variance_x0 = 0.5 * (1 + b * np.pi**4 / 5)**2
+        self.variance_x1 = a**2 / 8
+        self.variance_x0_x2 = 8 * b**2 * np.pi**8 / 225
+        self.V = self.variance_x0 + self.variance_x1 + self.variance_x0_x2
 
         self.exact_mean = a / 2
         self.exact_variance = self.V
         self.exact_sobol = np.array([
-            self.V1, self.V2, 0.0,
-            self.V1 + self.V13, self.V2,
-            self.V13, self.V13
+            self.variance_x0, self.variance_x1, 0.0,
+            self.variance_x0 + self.variance_x0_x2, self.variance_x1,
+            self.variance_x0_x2, self.variance_x0_x2
         ]) / self.V
 
         self.SOBOL_NAMES = (
-            "S1", "S2", "S3",
-            "ST1", "ST2", "ST3", "S1,3"
+            "S0", "S1", "S2",
+            "ST0", "ST1", "ST2", "S0,2"
         )
 
         self.sobol_pairs = [(0, 2)]
@@ -42,8 +42,8 @@ class ishigami:
     @staticmethod
     @njit(cache=True)
     def _evaluate(x, a, b):
-        x1, x2, x3 = np.asarray(x).T
-        return np.sin(x1) * (1 + b * x3**4) + a * np.sin(x2)**2
+        x0, x1, x2 = np.asarray(x).T
+        return np.sin(x0) * (1 + b * x2**4) + a * np.sin(x1)**2
 
 
 class morris2006:
@@ -117,7 +117,7 @@ class morris2006:
 
         self.problem = {
             'num_vars': dim,
-            'names': [f'x{i+1}' for i in range(dim)],
+            'names': [f'x{i}' for i in range(dim)],
             'bounds': [[0.0, 1.0] for _ in range(dim)],
         }
 
@@ -256,7 +256,7 @@ class legendrePoly3:
 
         self.problem = {
             'num_vars': dim,
-            'names': [f'x{i+1}' for i in range(dim)],
+            'names': [f'x{i}' for i in range(dim)],
             'bounds': [[0.0, 1.0] for _ in range(dim)],
         }
 
