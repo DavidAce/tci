@@ -7,6 +7,9 @@
 #include <vector>
 
 class BaseFunction;
+namespace cfg {
+    struct InputConfiguration;
+}
 
 namespace sens {
     struct Discretization {
@@ -14,7 +17,10 @@ namespace sens {
         IntegrationWeights integrationWeights;
     };
 
-    Discretization discretizeInputs(const BaseFunction &function, const QuadratureRuleFactory &makeRule);
-    Point          sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid);
-    NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
+    [[nodiscard]] Discretization discretizeInputs(const BaseFunction &function, const QuadratureRuleFactory &makeRule);
+    [[nodiscard]] Discretization discretizeInputs(const BaseFunction            &function,
+                                                  const cfg::InputConfiguration &configuredInputs,
+                                                  const std::vector<int>        &permutation);
+    [[nodiscard]] Point          sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid);
+    [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
 }

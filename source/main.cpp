@@ -16,7 +16,7 @@
 #include <xfac/tensor/tensor_ci.h>
 #include <xfac/tensor/tensor_ci_2.h>
 int main(int argc, char **argv) {
-    cli::parse(argc, argv);
+    const auto inputConfiguration = cli::parse(argc, argv);
     rnd::seed(cfg::seed);
 
     using namespace cfg;
@@ -32,19 +32,19 @@ int main(int argc, char **argv) {
     auto t_start = std::chrono::steady_clock::now();
     if(cfg::functionNameHas("ishigami")) {
         Ishigami function(cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     if(cfg::functionNameHas("morris")) {
         Morris2006 function(dimension, active, cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     if(cfg::functionNameHas("legendre")) {
         LegendrePoly3 function(dimension, cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     if(cfg::functionNameHas("npoly")) {
         NonlinearPolynomial function(8, 0.1, cfg::permutation);
-        sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature);
+        sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     auto t_end     = std::chrono::steady_clock::now();
     auto t_elapsed = t_end - t_start;

@@ -1,8 +1,11 @@
 #include "grid.hpp"
+#include "cfg/inputs.hpp"
 #include "func/BaseFunction.hpp"
 #include "quad/quadrature.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
+#include <fmt/format.h>
 #include <random>
 #include <stdexcept>
 #include <utility>
@@ -23,6 +26,64 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function, const 
         result.integrationWeights[k] = std::move(rule.weights);
     }
 
+    return result;
+}
+
+sens::Discretization sens::discretizeInputs(const BaseFunction &function,
+                                                    const cfg::InputConfiguration &configuredInputs,
+                                                    const std::vector<int> &permutation) {
+    const int dim = function.dimension();
+    if(configuredInputs.dimension != dim || configuredInputs.parameters.size() != static_cast<std::size_t>(dim))
+        throw std::invalid_argument("TOML dimension does not match the function dimension");
+    if(!permutation.empty() && permutation.size() != static_cast<std::size_t>(dim))
+        throw std::invalid_argument("Permutation size does not match the function dimension");
+
+    Discretization result;
+    result.nodes.resize(dim);
+    result.integrationWeights.resize(dim);
+    std::vector<bool> assigned(dim, false);
+
+    // Configured inputs are named in original parameter order. The permutation
+    // maps original parameter indices to positions in the TT.
+    for(int original = 0; original < dim; ++original) {
+        const int k = permutation.empty() ? original : permutation[original];
+        if(k < 0 || k >= dim || assigned[k]) throw std::invalid_argument("Invalid input permutation");
+        assigned[k] = true;
+
+        const auto &input = configuredInputs.parameters[original];
+        const auto *continuous = std::get_if<cfg::ContinuousParameter>(&input.specification);
+        if(!continuous) throw std::invalid_argument(fmt::format("Input {} is not continuous", input.name));
+        const auto *generated = std::get_if<cfg::GeneratedNodes>(&continuous->nodes);
+        if(!generated) throw std::invalid_argument(fmt::format("Input {} has no supported node generator", input.name));
+
+        // Until the next increment, continuous sampling still uses
+        // BaseFunction::domain(). Refuse incompatible TOML domains instead
+        // of silently computing Sobol moments for another input measure.
+        const auto [functionLo, functionHi] = function.domain(k);
+        const auto [lo, hi] = continuous->domain;
+        const auto sameBound = [](double a, double b) {
+            return std::isfinite(a) && std::isfinite(b) &&
+                   std::abs(a - b) <= 1e-12 * std::max({1.0, std::abs(a), std::abs(b)});
+        };
+        if(!sameBound(lo, functionLo) || !sameBound(hi, functionHi))
+            throw std::invalid_argument(fmt::format(
+                "Input {} domain [{}, {}] differs from the function domain [{}, {}]; "
+                "custom domains are not supported in this increment",
+                input.name, lo, hi, functionLo, functionHi));
+
+        quadrature::Rule rule;
+        if(generated->rule == "gk15")
+            rule = quadrature::gaussKronrod15(lo, hi);
+        else if(generated->rule == "gl")
+            rule = quadrature::gaussLegendre(generated->count, lo, hi);
+        else if(generated->rule == "cc")
+            rule = quadrature::clenshawCurtis(generated->count, lo, hi);
+        else
+            throw std::invalid_argument(fmt::format("Unknown quadrature rule '{}'", generated->rule));
+
+        result.nodes[k] = std::move(rule.nodes);
+        result.integrationWeights[k] = std::move(rule.weights);
+    }
     return result;
 }
 

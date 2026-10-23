@@ -7,7 +7,7 @@
 #include <stdexcept>
 namespace cli {
 
-    void parse(int argc, char **argv) {
+    std::optional<cfg::InputConfiguration> parse(int argc, char **argv) {
         using namespace cfg;
         CLI::App app{"TCI sensitivity analysis"};
 
@@ -15,16 +15,16 @@ namespace cli {
         app.option_defaults()->always_capture_default();
         app.add_option("--function", functionName, "Test function")
             ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly"}));
-        app.add_option("--quadrature", quadratureRuleName, "Quadrature rule")
+        auto *quadratureOption = app.add_option("--quadrature", quadratureRuleName, "Quadrature rule")
             ->check(CLI::IsMember({"gk15", "gl", "cc"}));
         app.add_option("--outdir", outdir, "Output directory for the results (HDF5 file)");
-        app.add_option("--nnodes", nnodes, "Number of Nodes (discretization points) per parameter ")
+        auto *nodesOption = app.add_option("--nnodes", nnodes, "Number of Nodes (discretization points) per parameter ")
             ->default_val(15)
             ->check(CLI::PositiveNumber);
         app.add_option("--bond-dim", bondDim, "Maximum MPS bond dimension")->check(CLI::PositiveNumber);
         app.add_option("--max-sweeps", maxSweeps, "Maximum half-sweeps")->check(CLI::PositiveNumber);
         app.add_option("--seed", seed, "PCG random seed");
-        app.add_option("--dimension", dimension,
+        auto *dimensionOption = app.add_option("--dimension", dimension,
                        "The number of input parameters for the function (for morris, legendre and npoly)")
             ->check(CLI::PositiveNumber);
         app.add_option("--active", active, "The number of input parameters for the function (legendre and npoly)")
@@ -44,22 +44,36 @@ namespace cli {
             app.parse(argc, argv);
         } catch(const CLI::ParseError &e) { std::exit(app.exit(e)); }
 
-        if(functionName == "morris" && active >= dimension)
-            throw std::invalid_argument(
-                fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
-        if(quadratureRuleName == "gk15" && nnodes != 15) throw std::invalid_argument("GK15 requires 15 nodes");
+        if(!cfg::input.empty() && (quadratureOption->count() != 0 || nodesOption->count() != 0))
+            throw std::invalid_argument("When --input is given, quadrature and node counts come from TOML; "
+                                        "do not also specify --quadrature or --nnodes");
+        if(cfg::input.empty() && quadratureRuleName == "gk15" && nnodes != 15)
+            throw std::invalid_argument("GK15 requires 15 nodes");
 
+        std::optional<cfg::InputConfiguration> configuration;
         if(!cfg::input.empty()) {
-            auto configuration = readInputConfiguration(input);
+            configuration = readInputConfiguration(input);
             if(functionName.empty())
-                functionName = configuration.functionName;
-            else if(!configuration.functionName.empty() && functionName != configuration.functionName) {
+                functionName = configuration->functionName;
+            else if(!configuration->functionName.empty() && functionName != configuration->functionName)
                 throw std::invalid_argument(fmt::format("Function name mismatch:\n"
                                                         "    cli: --function       = {}\n"
                                                         "    toml: [function].name = {} [{}]\n",
-                                                        cfg::functionName, configuration.functionName, cfg::input));
-            }
+                                                        cfg::functionName, configuration->functionName, cfg::input));
+
+            if(dimensionOption->count() == 0)
+                dimension = configuration->dimension;
+            else if(dimension != configuration->dimension)
+                throw std::invalid_argument(fmt::format(
+                    "Dimension mismatch: --dimension={} but TOML [function].dimension={}",
+                    dimension, configuration->dimension));
         }
+
+        if(functionName == "morris" && active >= dimension)
+            throw std::invalid_argument(
+                fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
+
+        return configuration;
     }
 
 }

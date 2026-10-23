@@ -1,6 +1,7 @@
 #include "sens.hpp"
 #include "accuracy.hpp"
 #include "cfg/cfg.hpp"
+#include "cfg/inputs.hpp"
 #include "func/BaseFunction.hpp"
 #include "grid.hpp"
 #include "h5t.hpp"
@@ -21,6 +22,7 @@
 #include <fmt/ranges.h>
 #include <h5pp/h5pp.h>
 #include <H5Tpublic.h>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -238,13 +240,22 @@ namespace sens {
     }
 
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
-                                int maxSweeps, const QuadratureRuleFactory &makeRule) {
+                                int maxSweeps, const QuadratureRuleFactory &makeRule,
+                                const std::optional<cfg::InputConfiguration> &inputCfg) {
         const auto reference = function.exactSobolIndices();
         auto h5file = h5pp::File(fmt::format("{}/{}.h5", cfg::outdir, function.name()), h5pp::FileAccess::REPLACE);
-        const auto  discretization = discretizeInputs(function, makeRule);
+        const auto  discretization = inputCfg.has_value()
+                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
+                                         : discretizeInputs(function, makeRule);
         const auto &nodes          = discretization.nodes;
         const auto &weights        = discretization.integrationWeights;
-        const auto  param          = makeTCIParameters(function, nodes, bondDim);
+        if(inputCfg) {
+            std::vector<std::size_t> nodeCounts;
+            nodeCounts.reserve(nodes.size());
+            for(const auto &axis : nodes) nodeCounts.push_back(axis.size());
+            fmt::print("TOML discretization nodes per parameter: [{}]\n", fmt::join(nodeCounts, ", "));
+        }
+        const auto param = makeTCIParameters(function, nodes, bondDim);
 
         writeSimulationParameters(h5file, param, function, relTolTargets);
 
