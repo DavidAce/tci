@@ -6,6 +6,7 @@
 #include "grid.hpp"
 #include "h5t.hpp"
 #include "hdf5.hpp"
+#include "io/environment.hpp"
 #include "info/sil.hpp"
 #include "interp/interp.hpp"
 #include "print.hpp"
@@ -244,6 +245,7 @@ namespace sens {
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
                                 const std::optional<cfg::InputConfiguration> &inputCfg) {
         auto h5file = h5pp::File(fmt::format("{}/{}.h5", cfg::outdir, function.name()), h5pp::FileAccess::REPLACE);
+        ::env::writeEnvironmentMetadata(h5file);
         const auto discretization = inputCfg.has_value()
                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
                                         : discretizeInputs(function, makeRule);

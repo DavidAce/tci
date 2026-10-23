@@ -76,3 +76,17 @@ target_include_directories(test-input-metadata PRIVATE ${CMAKE_SOURCE_DIR}/sourc
 target_link_libraries(test-input-metadata PRIVATE tci-libs)
 add_test(NAME test-input-metadata
     COMMAND test-input-metadata ${CMAKE_SOURCE_DIR}/tests/data/mixed_inputs.toml)
+
+# Read back the environment metadata written alongside simulation results.
+add_executable(test-environment-metadata
+    test_environment.cpp
+    ${CMAKE_SOURCE_DIR}/source/io/environment.cpp
+)
+target_include_directories(test-environment-metadata PRIVATE
+    ${CMAKE_SOURCE_DIR}/source
+    ${CMAKE_BINARY_DIR}/environment/include
+)
+target_link_libraries(test-environment-metadata PRIVATE tci-libs)
+add_test(NAME test-environment-metadata
+    COMMAND test-environment-metadata
+)

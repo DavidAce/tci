@@ -48,9 +48,11 @@ add_executable(TCI
         source/cli/cli.cpp
         source/interp/interp.cpp
         source/io/io.cpp
+        source/io/environment.cpp
 )
 
 target_include_directories(TCI PRIVATE source)
+target_include_directories(TCI PRIVATE "${CMAKE_BINARY_DIR}/environment/include") # For git/host/build metadata
 
 
 ### Find dependencies
@@ -101,6 +103,7 @@ target_link_libraries(TCI PRIVATE tci-libs)
 ### Gives a namespace GIT:: with several git identifiers     ###
 ################################################################
 include(cmake/gitversion.cmake)
+include(cmake/environment.cmake)
 
 add_subdirectory(examples) # Builds examples if TCI_BUILD_EXAMPLES==ON
 

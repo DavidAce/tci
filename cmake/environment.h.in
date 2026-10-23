@@ -1,0 +1,26 @@
+#pragma once
+
+#include <string_view>
+
+namespace env {
+    namespace git {
+        inline constexpr std::string_view branch      = "@ESC_TCI_GIT_BRANCH@";
+        inline constexpr std::string_view commit_hash = "@ESC_TCI_GIT_COMMIT_HASH@";
+        inline constexpr std::string_view revision    = "@ESC_TCI_GIT_REVISION@";
+    }
+    namespace build {
+        inline constexpr std::string_view datetime       = __DATE__ " " __TIME__;
+        inline constexpr std::string_view hostname       = "@ESC_TCI_BUILD_HOSTNAME@";
+        inline constexpr std::string_view cpu_type       = "@ESC_TCI_BUILD_CPU_TYPE@";
+        inline constexpr std::string_view os_name        = "@ESC_TCI_BUILD_OS_NAME@";
+        inline constexpr std::string_view os_release     = "@ESC_TCI_BUILD_OS_RELEASE@";
+        inline constexpr std::string_view os_version     = "@ESC_TCI_BUILD_OS_VERSION@";
+        inline constexpr std::string_view os_platform    = "@ESC_TCI_BUILD_OS_PLATFORM@";
+        inline constexpr std::string_view compiler       = "@ESC_TCI_BUILD_COMPILER@";
+        inline constexpr std::string_view compiler_flags = "@ESC_TCI_BUILD_COMPILER_FLAGS@";
+        inline constexpr std::string_view linker_flags   = "@ESC_TCI_BUILD_LINKER_FLAGS@";
+        inline constexpr std::string_view configuration  = "@ESC_TCI_BUILD_CONFIGURATION@";
+        inline constexpr std::string_view generator      = "@ESC_TCI_BUILD_GENERATOR@";
+        inline constexpr std::string_view cmake_version  = "@ESC_TCI_BUILD_CMAKE_VERSION@";
+    }
+}
