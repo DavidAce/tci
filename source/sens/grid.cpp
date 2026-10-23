@@ -142,10 +142,6 @@ sens::Point sens::sampleInputPoint(const Discretization &discretization) {
     return point;
 }
 
-sens::Point sens::sampleContinuousPoint(const Discretization &discretization) {
-    return sampleInputPoint(discretization);
-}
-
 sens::NodeSamples sens::sampleNodePoints(const BaseFunction &function, const Grid &nodes, int count) {
     std::mt19937_64 rng(123456789);
 

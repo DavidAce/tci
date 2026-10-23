@@ -31,7 +31,5 @@ namespace sens {
                                                   const std::vector<int>        &permutation);
     [[nodiscard]] bool           domainsMatch(const Domains &domains1, const Domains &domains2);
     [[nodiscard]] Point          sampleInputPoint(const Discretization &discretization);
-    // Kept for current callers; the implementation now supports all three input kinds.
-    [[nodiscard]] Point       sampleContinuousPoint(const Discretization &discretization);
-    [[nodiscard]] NodeSamples sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
+    [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
 }

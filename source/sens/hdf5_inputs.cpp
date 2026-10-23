@@ -3,8 +3,10 @@
 #include "grid.hpp"
 #include "hdf5.hpp"
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <h5pp/h5pp.h>
 #include <numeric>
 #include <stdexcept>
@@ -43,7 +45,7 @@ namespace sens {
         file.writeDataset(static_cast<int>(dim), prfx + "/dimension");
         file.writeDataset(permutedIndices, prfx + "/permutation");
         file.writeDataset(originalIndices, prfx + "/permuted_index_order");
-        file.writeDataset(configuration ? cfg::input : "CLI", prfx + "/source");
+        file.writeDataset(configuration ? "TOML" : "CLI", prfx + "/source");
 
         for(std::size_t axis = 0; axis < dim; ++axis) {
             const auto  oidx    = static_cast<std::size_t>(originalIndices[axis]);
@@ -54,7 +56,7 @@ namespace sens {
                 throw std::invalid_argument(
                     fmt::format("Invalid nodes/weights for axis {} with original index {}", axis, oidx));
 
-            const auto axis_name  = configuration ? configuration->parameters[oidx].name : fmt::format("x{}", axis);
+            const auto axis_name  = configuration ? configuration->parameters[oidx].name : fmt::format("x{}", oidx);
             int        node_count = static_cast<int>(nodes.size());
             file.writeDataset(axis_name, prefix + "/name");
             file.writeDataset(static_cast<int>(oidx), prefix + "/original_index");
@@ -78,11 +80,11 @@ namespace sens {
                                 fmt::format("Input {}  with original index {} has unsupported node specification",
                                             axis_name, oidx));
                         quadratureRule = generated->quadratureRule;
-                        node_count     = generated->count;
+                        if(generated->count != static_cast<int>(nodes.size()))
+                            throw std::invalid_argument(
+                                fmt::format("Input {} node count disagrees with discretization", axis_name));
                     }
-                    if(node_count != static_cast<int>(nodes.size()))
-                        throw std::invalid_argument(
-                            fmt::format("Input {} node count disagrees with discretization", axis_name));
+
                     file.writeDataset("continuous", prefix + "/kind");
                     file.writeDataset(std::array<double, 2>{lo, hi}, prefix + "/domain");
                     file.writeDataset(quadratureRule, prefix + "/discretization/quadrature_rule");

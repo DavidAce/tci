@@ -6,9 +6,9 @@
 #include "grid.hpp"
 #include "h5t.hpp"
 #include "hdf5.hpp"
-#include "io/environment.hpp"
 #include "info/sil.hpp"
 #include "interp/interp.hpp"
+#include "io/environment.hpp"
 #include "print.hpp"
 #include "quad/quadrature.hpp"
 #include "rnd/rnd.hpp"
@@ -244,7 +244,8 @@ namespace sens {
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
                                 const std::optional<cfg::InputConfiguration> &inputCfg) {
-        auto h5file = h5pp::File(fmt::format("{}/{}.h5", cfg::outdir, function.name()), h5pp::FileAccess::REPLACE);
+        auto h5file =
+            h5pp::File(fmt::format("{}/{}.{}.h5", cfg::outdir, function.name(), cfg::seed), h5pp::FileAccess::REPLACE);
         ::env::writeEnvironmentMetadata(h5file);
         const auto discretization = inputCfg.has_value()
                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)

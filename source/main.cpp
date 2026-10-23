@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
         sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     if(cfg::functionNameHas("npoly")) {
-        NonlinearPolynomial function(8, 0.1, cfg::permutation);
+        NonlinearPolynomial function(dimension, 0.1, cfg::permutation);
         sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
     }
     auto t_end     = std::chrono::steady_clock::now();
