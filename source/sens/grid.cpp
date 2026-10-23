@@ -1,10 +1,11 @@
 #include "grid.hpp"
+#include "cfg/cfg.hpp"
 #include "cfg/inputs.hpp"
 #include "func/BaseFunction.hpp"
 #include "quad/quadrature.hpp"
 #include <algorithm>
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <fmt/format.h>
 #include <random>
 #include <stdexcept>
@@ -17,9 +18,11 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function, const 
     Discretization result;
     result.nodes.resize(dim);
     result.integrationWeights.resize(dim);
+    result.domains.resize(dim);
 
     for(int k = 0; k < dim; ++k) {
-        const auto [lo, hi] = function.domain(k);
+        result.domains[k]   = function.domain(k);
+        const auto [lo, hi] = result.domains[k];
         auto rule           = makeRule(lo, hi);
 
         result.nodes[k]              = std::move(rule.nodes);
@@ -29,9 +32,9 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function, const 
     return result;
 }
 
-sens::Discretization sens::discretizeInputs(const BaseFunction &function,
-                                                    const cfg::InputConfiguration &configuredInputs,
-                                                    const std::vector<int> &permutation) {
+sens::Discretization sens::discretizeInputs(const BaseFunction            &function,
+                                            const cfg::InputConfiguration &configuredInputs,
+                                            const std::vector<int>        &permutation) {
     const int dim = function.dimension();
     if(configuredInputs.dimension != dim || configuredInputs.parameters.size() != static_cast<std::size_t>(dim))
         throw std::invalid_argument("TOML dimension does not match the function dimension");
@@ -41,6 +44,7 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function,
     Discretization result;
     result.nodes.resize(dim);
     result.integrationWeights.resize(dim);
+    result.domains.resize(dim);
     std::vector<bool> assigned(dim, false);
 
     // Configured inputs are named in original parameter order. The permutation
@@ -50,26 +54,16 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function,
         if(k < 0 || k >= dim || assigned[k]) throw std::invalid_argument("Invalid input permutation");
         assigned[k] = true;
 
-        const auto &input = configuredInputs.parameters[original];
+        const auto &input      = configuredInputs.parameters[original];
         const auto *continuous = std::get_if<cfg::ContinuousParameter>(&input.specification);
         if(!continuous) throw std::invalid_argument(fmt::format("Input {} is not continuous", input.name));
         const auto *generated = std::get_if<cfg::GeneratedNodes>(&continuous->nodes);
         if(!generated) throw std::invalid_argument(fmt::format("Input {} has no supported node generator", input.name));
 
-        // Until the next increment, continuous sampling still uses
-        // BaseFunction::domain(). Refuse incompatible TOML domains instead
-        // of silently computing Sobol moments for another input measure.
-        const auto [functionLo, functionHi] = function.domain(k);
+        // TOML defines the input measure; the generated quadrature weights
+        // approximate expectations under a uniform distribution on this domain.
         const auto [lo, hi] = continuous->domain;
-        const auto sameBound = [](double a, double b) {
-            return std::isfinite(a) && std::isfinite(b) &&
-                   std::abs(a - b) <= 1e-12 * std::max({1.0, std::abs(a), std::abs(b)});
-        };
-        if(!sameBound(lo, functionLo) || !sameBound(hi, functionHi))
-            throw std::invalid_argument(fmt::format(
-                "Input {} domain [{}, {}] differs from the function domain [{}, {}]; "
-                "custom domains are not supported in this increment",
-                input.name, lo, hi, functionLo, functionHi));
+        result.domains[k]   = {lo, hi};
 
         quadrature::Rule rule;
         if(generated->rule == "gk15")
@@ -81,32 +75,46 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function,
         else
             throw std::invalid_argument(fmt::format("Unknown quadrature rule '{}'", generated->rule));
 
-        result.nodes[k] = std::move(rule.nodes);
+        result.nodes[k]              = std::move(rule.nodes);
         result.integrationWeights[k] = std::move(rule.weights);
     }
     return result;
 }
 
-std::vector<double> sens::sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid) {
+bool sens::domainsMatch(const Domains &domains1, const Domains &domains2) {
+    if(domains1.size() != domains2.size()) return false;
+    const auto dim = static_cast<std::size_t>(domains1.size());
+    for(std::size_t k = 0; k < dim; ++k) {
+        const auto [a1, b1]  = domains1[k];
+        const auto [a2, b2]  = domains2[k];
+        const auto sameBound = [](double lhs, double rhs) {
+            return std::isfinite(lhs) && std::isfinite(rhs) &&
+                   std::abs(lhs - rhs) <= cfg::convTol * std::max({1.0, std::abs(lhs), std::abs(rhs)});
+        };
+        if(!sameBound(a1, a2) || !sameBound(b1, b2)) return false;
+    }
+    return true;
+}
+
+sens::Point sens::sampleContinuousPoint(const Discretization &discretization) {
     static thread_local std::mt19937_64 rng(987654321);
 
-    const int dim = function.dimension();
-    if(grid.size() != static_cast<std::size_t>(dim)) throw std::invalid_argument("Grid dimension mismatch");
+    const auto &grid    = discretization.nodes;
+    const auto &domains = discretization.domains;
+    if(grid.empty() || domains.size() != grid.size())
+        throw std::invalid_argument("Sampling domains and grid dimensions do not match");
 
-    std::vector<double> point(dim);
-
-    for(int k = 0; k < dim; ++k) {
-        const auto [lo, hi] = function.domain(k);
-        if(!(lo < hi)) throw std::invalid_argument("Invalid domain");
+    Point point(grid.size());
+    for(std::size_t k = 0; k < grid.size(); ++k) {
+        const auto [lo, hi] = domains[k];
+        if(!std::isfinite(lo) || !std::isfinite(hi) || !(lo < hi))
+            throw std::invalid_argument("Invalid continuous input domain");
 
         std::uniform_real_distribution<double> distribution(lo, hi);
-
-        bool accepted = false;
+        bool                                   accepted = false;
         while(!accepted) {
             const double x = distribution(rng);
-
-            accepted = x > lo && x < hi && std::find(grid[k].begin(), grid[k].end(), x) == grid[k].end();
-
+            accepted       = x > lo && x < hi && std::find(grid[k].begin(), grid[k].end(), x) == grid[k].end();
             if(accepted) point[k] = x;
         }
     }

@@ -1,0 +1,19 @@
+[function]
+name = "test"
+dimension = 3
+
+[defaults]
+type = "continuous"
+nodes = { rule = "gl", count = 5 }
+
+[[parameter_groups]]
+select = ["0"]
+domain = [-5.0, -4.0]
+
+[[parameter_groups]]
+select = ["1"]
+domain = [0.2, 0.4]
+
+[[parameter_groups]]
+select = ["2"]
+domain = [7.0, 8.0]

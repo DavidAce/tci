@@ -27,6 +27,7 @@ endif()
 add_executable(TCI
         source/main.cpp
         source/cfg/inputs.cpp
+        source/func/BaseFunction.cpp
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
         source/func/LegendrePoly3.cpp

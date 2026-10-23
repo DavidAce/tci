@@ -24,3 +24,20 @@ add_executable(test-inputs test_inputs.cpp ${CMAKE_SOURCE_DIR}/source/cfg/inputs
 target_include_directories(test-inputs PRIVATE ${CMAKE_SOURCE_DIR}/source)
 target_link_libraries(test-inputs PRIVATE tci-libs)
 add_test(NAME test-inputs COMMAND test-inputs ${CMAKE_SOURCE_DIR}/input/ishigami.toml)
+
+add_executable(test-discretization
+    test_discretization.cpp
+    ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp
+    ${CMAKE_SOURCE_DIR}/source/func/BaseFunction.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/grid.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/accuracy.cpp
+    ${CMAKE_SOURCE_DIR}/source/interp/interp.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/quadrature.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussKronrod.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussLegendre.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/ClenshawCurtis.cpp
+)
+target_include_directories(test-discretization PRIVATE ${CMAKE_SOURCE_DIR}/source)
+target_link_libraries(test-discretization PRIVATE tci-libs)
+add_test(NAME test-discretization
+    COMMAND test-discretization ${CMAKE_SOURCE_DIR}/tests/data/discretization_domains.toml)

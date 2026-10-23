@@ -242,13 +242,18 @@ namespace sens {
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
                                 const std::optional<cfg::InputConfiguration> &inputCfg) {
-        const auto reference = function.exactSobolIndices();
         auto h5file = h5pp::File(fmt::format("{}/{}.h5", cfg::outdir, function.name()), h5pp::FileAccess::REPLACE);
-        const auto  discretization = inputCfg.has_value()
-                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
-                                         : discretizeInputs(function, makeRule);
-        const auto &nodes          = discretization.nodes;
-        const auto &weights        = discretization.integrationWeights;
+        const auto discretization = inputCfg.has_value()
+                                        ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
+                                        : discretizeInputs(function, makeRule);
+        // The exact Sobol indices assume the original input domains.
+        // If TOML changes these domains, the exact values no longer apply.
+        const bool hasMatchingDomains = domainsMatch(function.domains(), discretization.domains);
+        const auto reference          = hasMatchingDomains ? function.exactSobolIndices() : SobolReference{};
+        if(!hasMatchingDomains)
+            fmt::print("Exact Sobol references disabled: TOML input domains differ from benchmark domains.\n");
+        const auto &nodes   = discretization.nodes;
+        const auto &weights = discretization.integrationWeights;
         if(inputCfg) {
             std::vector<std::size_t> nodeCounts;
             nodeCounts.reserve(nodes.size());
@@ -265,7 +270,7 @@ namespace sens {
         // Samples used to identify missing information on the node grid.
         const auto nodeSamples = sampleNodePoints(function, nodes, AnalysisSettings::nNodeSamples);
         // Independent samples used only to measure prediction accuracy.
-        const auto functionSamples = sampleFunctionValues(function, nodes, cfg::nsamples);
+        const auto functionSamples = sampleFunctionValues(function, discretization, cfg::nsamples);
 
         TargetProgress      progress(relTolTargets.size());
         std::vector<Status> statusLog;

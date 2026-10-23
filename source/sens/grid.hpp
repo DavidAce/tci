@@ -4,6 +4,7 @@
 #include "quad/quadrature.hpp"
 #include "samples.hpp"
 #include "types.hpp"
+#include <utility>
 #include <vector>
 
 class BaseFunction;
@@ -12,8 +13,11 @@ namespace cfg {
 }
 
 namespace sens {
+    using Domain  = std::pair<double, double>;
+    using Domains = std::vector<Domain>;
     struct Discretization {
         Grid               nodes;
+        Domains            domains; // TT-axis order, independent uniform inputs
         IntegrationWeights integrationWeights;
     };
 
@@ -21,6 +25,7 @@ namespace sens {
     [[nodiscard]] Discretization discretizeInputs(const BaseFunction            &function,
                                                   const cfg::InputConfiguration &configuredInputs,
                                                   const std::vector<int>        &permutation);
-    [[nodiscard]] Point          sampleContinuousPoint(const BaseFunction &function, const sens::Grid &grid);
+    [[nodiscard]] bool           domainsMatch(const Domains &domains1, const Domains &domains2);
+    [[nodiscard]] Point          sampleContinuousPoint(const Discretization &discretization);
     [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
 }

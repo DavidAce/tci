@@ -8,6 +8,9 @@ namespace sens {
 
 class BaseFunction {
     public:
+    using Domain  = std::pair<double, double>;
+    using Domains = std::vector<Domain>;
+
     virtual ~BaseFunction()                                                        = default;
     virtual std::string_view          name() const                                 = 0;
     virtual int                       dimension() const                            = 0;
@@ -15,4 +18,5 @@ class BaseFunction {
     virtual std::pair<double, double> domain(int i) const                          = 0;
     virtual sens::SobolReference      exactSobolIndices() const                    = 0;
     virtual std::vector<int>          initialPivot() const { return std::vector<int>(dimension(), 4); }
+    [[nodiscard]] Domains             domains() const;
 };

@@ -40,14 +40,15 @@ sens::PredictionError sens::measurePredictionError(const TensorCI &ci, const Gri
     return result;
 }
 
-sens::FunctionSamples sens::sampleFunctionValues(const BaseFunction &function, const Grid &grid, int count) {
+sens::FunctionSamples sens::sampleFunctionValues(const BaseFunction &function, const Discretization &discretization,
+                                                 int count) {
     if(count <= 0) throw std::invalid_argument("Sample count must be positive");
 
     sens::FunctionSamples samples;
     samples.reserve(count);
 
     for(int n = 0; n < count; ++n) {
-        auto point = sens::sampleContinuousPoint(function, grid);
+        auto point = sens::sampleContinuousPoint(discretization);
 
         samples.push_back({.point = point, .value = function.evaluate(point)});
     }

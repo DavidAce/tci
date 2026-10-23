@@ -13,6 +13,7 @@ namespace xfac {
 }
 
 namespace sens {
+    struct Discretization;
 
     using TensorCI = xfac::CTensorCI2<double, double>;
 
@@ -30,7 +31,7 @@ namespace sens {
         double maxAbsoluteError = std::numeric_limits<double>::quiet_NaN();
     };
 
-    FunctionSamples sampleFunctionValues(const BaseFunction &function, const Grid &grid, int count);
+    FunctionSamples sampleFunctionValues(const BaseFunction &function, const Discretization &discretization, int count);
     NodeSampleError measureNodeSampleError(const TensorCI &ci, const NodeSamples &samples,
                                            const std::set<NodeIndices> &insertedPoints);
     PredictionError measurePredictionError(const TensorCI &ci, const Grid &grid, const FunctionSamples &samples);
