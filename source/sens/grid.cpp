@@ -78,14 +78,14 @@ sens::Discretization sens::discretizeInputs(const BaseFunction            &funct
         result.domains[k]   = {lo, hi};
 
         quadrature::Rule rule;
-        if(generated->rule == "gk15")
+        if(generated->quadratureRule == "gk15")
             rule = quadrature::gaussKronrod15(lo, hi);
-        else if(generated->rule == "gl")
+        else if(generated->quadratureRule == "gl")
             rule = quadrature::gaussLegendre(generated->count, lo, hi);
-        else if(generated->rule == "cc")
+        else if(generated->quadratureRule == "cc")
             rule = quadrature::clenshawCurtis(generated->count, lo, hi);
         else
-            throw std::invalid_argument(fmt::format("Unknown quadrature rule '{}'", generated->rule));
+            throw std::invalid_argument(fmt::format("Unknown quadrature rule '{}'", generated->quadratureRule));
 
         result.nodes[k]              = std::move(rule.nodes);
         result.integrationWeights[k] = std::move(rule.weights);

@@ -118,8 +118,8 @@ namespace sens {
 
     void updateSweepStatus(Status &status, const TensorCI &ci, const Discretization &discretization,
                            const IntegrationWeights &weights, const FunctionSamples &samples,
-                           const SobolReference &reference,
-                           const std::vector<double> &targets, TargetProgress &progress) {
+                           const SobolReference &reference, const std::vector<double> &targets,
+                           TargetProgress &progress) {
         status.sweeps                 = ci.cIter - 1;
         status.nEval                  = static_cast<int>(ci.f.nEval());
         status.bondDims               = getTTBondDimensions(ci);
@@ -249,8 +249,8 @@ namespace sens {
                                         : discretizeInputs(function, makeRule);
         // Benchmark Sobol references assume continuous uniform inputs on the original domains.
         // Changed domains or discrete input probabilities generally give different Sobol indices.
-        const bool allContinuous = std::all_of(discretization.kinds.begin(), discretization.kinds.end(),
-                                              [](InputKind kind) { return kind == InputKind::Continuous; });
+        const bool allContinuous      = std::all_of(discretization.kinds.begin(), discretization.kinds.end(),
+                                                    [](InputKind kind) { return kind == InputKind::Continuous; });
         const bool hasMatchingDomains = allContinuous && domainsMatch(function.domains(), discretization.domains);
         const auto reference          = hasMatchingDomains ? function.exactSobolIndices() : SobolReference{};
         if(!hasMatchingDomains)
@@ -266,6 +266,7 @@ namespace sens {
         const auto param = makeTCIParameters(function, nodes, bondDim);
 
         writeSimulationParameters(h5file, param, function, relTolTargets);
+        writeInputMetadata(h5file, discretization, inputCfg, cfg::permutation, cfg::quadratureRuleName);
 
         FunctionEvaluator evaluate{function};
         TensorCI          ci(evaluate, nodes, param);

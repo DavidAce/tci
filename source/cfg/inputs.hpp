@@ -13,7 +13,7 @@ namespace cfg {
 
     // Description of input parameters, independent of the numerical TT/grid.
     struct GeneratedNodes {
-        std::string rule;
+        std::string quadratureRule;
         int         count = 0;
     };
 

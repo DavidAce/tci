@@ -35,6 +35,7 @@ add_executable(TCI
         source/func/PermutedFunction.cpp
         source/sens/accuracy.cpp
         source/sens/hdf5.cpp
+        source/sens/hdf5_inputs.cpp
         source/sens/sens.cpp
         source/sens/sobol.cpp
         source/sens/grid.cpp

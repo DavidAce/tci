@@ -6,6 +6,7 @@ namespace cfg {
     inline std::string         quadratureRuleName = "gk15";
     inline std::string         outdir             = "analysis/tci";
     inline std::string         input              = "";
+    inline std::string         command            = "";
     inline int                 nnodes             = 15;
     inline int                 dimension          = 8;
     inline int                 active             = 5;

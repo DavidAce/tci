@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
         require(std::abs(continuous->domain[0] + 3.141592653589793) < 1e-14, "invalid lower bound");
         require(std::abs(continuous->domain[1] - 3.141592653589793) < 1e-14, "invalid upper bound");
         const auto *nodes = std::get_if<cfg::GeneratedNodes>(&continuous->nodes);
-        require(nodes && nodes->rule == "gk15" && nodes->count == 15, "incorrect node rule");
+        require(nodes && nodes->quadratureRule == "gk15" && nodes->count == 15, "incorrect node rule");
     }
 
     // Mixed comma-separated indices, half-open slices, omitted bounds and strides.

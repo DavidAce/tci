@@ -4,6 +4,7 @@
 #include "CLI/CLI.hpp"
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
+#include <fmt/ranges.h>
 #include <stdexcept>
 namespace cli {
 
@@ -16,17 +17,18 @@ namespace cli {
         app.add_option("--function", functionName, "Test function")
             ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly"}));
         auto *quadratureOption = app.add_option("--quadrature", quadratureRuleName, "Quadrature rule")
-            ->check(CLI::IsMember({"gk15", "gl", "cc"}));
+                                     ->check(CLI::IsMember({"gk15", "gl", "cc"}));
         app.add_option("--outdir", outdir, "Output directory for the results (HDF5 file)");
         auto *nodesOption = app.add_option("--nnodes", nnodes, "Number of Nodes (discretization points) per parameter ")
-            ->default_val(15)
-            ->check(CLI::PositiveNumber);
+                                ->default_val(15)
+                                ->check(CLI::PositiveNumber);
         app.add_option("--bond-dim", bondDim, "Maximum MPS bond dimension")->check(CLI::PositiveNumber);
         app.add_option("--max-sweeps", maxSweeps, "Maximum half-sweeps")->check(CLI::PositiveNumber);
         app.add_option("--seed", seed, "PCG random seed");
-        auto *dimensionOption = app.add_option("--dimension", dimension,
-                       "The number of input parameters for the function (for morris, legendre and npoly)")
-            ->check(CLI::PositiveNumber);
+        auto *dimensionOption =
+            app.add_option("--dimension", dimension,
+                           "The number of input parameters for the function (for morris, legendre and npoly)")
+                ->check(CLI::PositiveNumber);
         app.add_option("--active", active, "The number of input parameters for the function (legendre and npoly)")
             ->check(CLI::PositiveNumber);
         app.add_option("--nsamples", nsamples,
@@ -64,14 +66,18 @@ namespace cli {
             if(dimensionOption->count() == 0)
                 dimension = configuration->dimension;
             else if(dimension != configuration->dimension)
-                throw std::invalid_argument(fmt::format(
-                    "Dimension mismatch: --dimension={} but TOML [function].dimension={}",
-                    dimension, configuration->dimension));
+                throw std::invalid_argument(
+                    fmt::format("Dimension mismatch: --dimension={} but TOML [function].dimension={}", dimension,
+                                configuration->dimension));
         }
 
         if(functionName == "morris" && active >= dimension)
             throw std::invalid_argument(
                 fmt::format("'--function=morris' requires --active ({}) < --dimension ({})", active, dimension));
+
+        std::vector<std::string> all_arg;
+        if(argc > 1) { all_arg.assign(argv + 1, argv + argc); }
+        command = fmt::format("{} {}", argv[0], fmt::join(all_arg, " "));
 
         return configuration;
     }

@@ -281,16 +281,16 @@ def main():
 
     function = constructors[args.function]()
 
-    dirname = os.path.dirname(__file__)
-    filename = os.path.join(dirname, args.tci_h5)
-    il = read_info_lattice(filename, "tci/sil")
-    fig, _ = plot_info_lattice(il, logarithmic=False, vmin=1e-5, vmax=1.0, cmap="Greens", size=280)
-
-
     run_tci(args, tci_args)
     gp_models = run_gp(args, function)
 
     compare_tci_gp(args, gp_models, function)
+
+
+    dirname = os.path.dirname(__file__)
+    filename = os.path.join(dirname, args.tci_h5)
+    il = read_info_lattice(filename, "tci/sil")
+    fig, _ = plot_info_lattice(il, logarithmic=False, vmin=1e-5, vmax=1.0, cmap="Greens", size=280)
     plt.show()
 
     exit(0)

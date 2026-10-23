@@ -42,7 +42,7 @@ target_link_libraries(test-discretization PRIVATE tci-libs)
 add_test(NAME test-discretization
     COMMAND test-discretization ${CMAKE_SOURCE_DIR}/tests/data/discretization_domains.toml)
 
-# Continuous, integer and categorical input sampling and discretization.
+# Continuous and discrete input sampling and discretization.
 add_executable(test-discrete-inputs
     test_discrete_inputs.cpp
     ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp
@@ -59,3 +59,20 @@ target_include_directories(test-discrete-inputs PRIVATE ${CMAKE_SOURCE_DIR}/sour
 target_link_libraries(test-discrete-inputs PRIVATE tci-libs)
 add_test(NAME test-discrete-inputs
     COMMAND test-discrete-inputs ${CMAKE_SOURCE_DIR}/tests/data/mixed_inputs.toml)
+
+# Read back resolved input metadata from HDF5 (TOML and legacy CLI paths).
+add_executable(test-input-metadata
+    test_input_metadata.cpp
+    ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp
+    ${CMAKE_SOURCE_DIR}/source/func/BaseFunction.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/grid.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/hdf5_inputs.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/quadrature.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussKronrod.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussLegendre.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/ClenshawCurtis.cpp
+)
+target_include_directories(test-input-metadata PRIVATE ${CMAKE_SOURCE_DIR}/source)
+target_link_libraries(test-input-metadata PRIVATE tci-libs)
+add_test(NAME test-input-metadata
+    COMMAND test-input-metadata ${CMAKE_SOURCE_DIR}/tests/data/mixed_inputs.toml)
