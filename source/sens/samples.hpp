@@ -5,7 +5,7 @@
 
 namespace sens {
 
-    // One directly evaluated function value at a continuous point.
+    // One directly evaluated function value at a continuous or discrete input point.
     struct FunctionSample {
         Point  point;
         double value = 0.0;

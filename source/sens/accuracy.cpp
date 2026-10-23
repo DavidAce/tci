@@ -10,11 +10,11 @@
 #include <stdexcept>
 #include <xfac/tensor/tensor_ci_2.h>
 
-sens::PredictionError sens::measurePredictionError(const TensorCI &ci, const Grid &grid,
+sens::PredictionError sens::measurePredictionError(const TensorCI &ci, const Discretization &discretization,
                                                    const sens::FunctionSamples &samples) {
     if(samples.empty()) throw std::invalid_argument("No function samples available");
 
-    const auto interpolatedTT = interp::interpolateTT(ci.tt, grid);
+    const auto interpolatedTT = interp::interpolateTT(ci.tt, discretization);
 
     double sumSquaredError  = 0.0;
     double sumSquaredValues = 0.0;
@@ -48,7 +48,7 @@ sens::FunctionSamples sens::sampleFunctionValues(const BaseFunction &function, c
     samples.reserve(count);
 
     for(int n = 0; n < count; ++n) {
-        auto point = sens::sampleContinuousPoint(discretization);
+        auto point = sens::sampleInputPoint(discretization);
 
         samples.push_back({.point = point, .value = function.evaluate(point)});
     }

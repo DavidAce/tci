@@ -1,4 +1,5 @@
 #include "interp.hpp"
+#include "sens/grid.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -26,8 +27,12 @@ namespace {
     }
 }
 
-xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain<double> &tt, const sens::Grid &grid) {
+namespace {
+xfac::CTensorTrain<double, double> makeInterpolatedTT(const xfac::TensorTrain<double> &tt,
+                                                     const sens::Grid &grid,
+                                                     const std::vector<sens::InputKind> *kinds) {
     if(tt.M.size() != grid.size()) throw std::invalid_argument("Grid dimension mismatch");
+    if(kinds && kinds->size() != grid.size()) throw std::invalid_argument("Input kinds and grid dimension mismatch");
 
     xfac::CTensorTrain<double, double> result;
     result.M.reserve(tt.M.size());
@@ -38,6 +43,15 @@ xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain
 
         if(nodes.size() != core.n_cols) throw std::invalid_argument("Grid size mismatch");
 
+        if(kinds && (*kinds)[k] != sens::InputKind::Continuous) {
+            result.M.emplace_back([core = std::move(core), nodes = std::move(nodes)](double x) -> arma::Mat<double> {
+                const auto position = std::find(nodes.begin(), nodes.end(), x);
+                if(position == nodes.end())
+                    throw std::invalid_argument("Discrete TT evaluation requires a configured input value");
+                return arma::Mat<double>(core.col(static_cast<arma::uword>(position - nodes.begin())));
+            });
+            continue;
+        }
         const auto interpolationWeights = calculateBarycentricWeights(nodes);
 
         result.M.emplace_back([core = std::move(core), nodes = std::move(nodes),
@@ -63,4 +77,14 @@ xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain
     }
 
     return result;
+}
+}
+
+xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain<double> &tt, const sens::Grid &grid) {
+    return makeInterpolatedTT(tt, grid, nullptr);
+}
+
+xfac::CTensorTrain<double, double> interp::interpolateTT(const xfac::TensorTrain<double> &tt,
+                                                          const sens::Discretization &discretization) {
+    return makeInterpolatedTT(tt, discretization.nodes, &discretization.kinds);
 }

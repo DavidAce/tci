@@ -34,6 +34,7 @@ namespace sens {
     FunctionSamples sampleFunctionValues(const BaseFunction &function, const Discretization &discretization, int count);
     NodeSampleError measureNodeSampleError(const TensorCI &ci, const NodeSamples &samples,
                                            const std::set<NodeIndices> &insertedPoints);
-    PredictionError measurePredictionError(const TensorCI &ci, const Grid &grid, const FunctionSamples &samples);
+    PredictionError measurePredictionError(const TensorCI &ci, const Discretization &discretization,
+                                            const FunctionSamples &samples);
 
 }

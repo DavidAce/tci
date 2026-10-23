@@ -4,6 +4,7 @@
 #include "quad/quadrature.hpp"
 #include "samples.hpp"
 #include "types.hpp"
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -15,10 +16,13 @@ namespace cfg {
 namespace sens {
     using Domain  = std::pair<double, double>;
     using Domains = std::vector<Domain>;
+    enum class InputKind { Continuous, Discrete };
+
     struct Discretization {
-        Grid               nodes;
-        Domains            domains; // TT-axis order, independent uniform inputs
-        IntegrationWeights integrationWeights;
+        Grid                   nodes;
+        Domains                domains;            // Bounds for continuous axes; discrete min/max otherwise
+        IntegrationWeights     integrationWeights; // Quadrature weights or discrete probabilities
+        std::vector<InputKind> kinds;              // TT-axis order
     };
 
     [[nodiscard]] Discretization discretizeInputs(const BaseFunction &function, const QuadratureRuleFactory &makeRule);
@@ -26,6 +30,8 @@ namespace sens {
                                                   const cfg::InputConfiguration &configuredInputs,
                                                   const std::vector<int>        &permutation);
     [[nodiscard]] bool           domainsMatch(const Domains &domains1, const Domains &domains2);
-    [[nodiscard]] Point          sampleContinuousPoint(const Discretization &discretization);
-    [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
+    [[nodiscard]] Point          sampleInputPoint(const Discretization &discretization);
+    // Kept for current callers; the implementation now supports all three input kinds.
+    [[nodiscard]] Point       sampleContinuousPoint(const Discretization &discretization);
+    [[nodiscard]] NodeSamples sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
 }

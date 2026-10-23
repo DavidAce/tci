@@ -41,3 +41,21 @@ target_include_directories(test-discretization PRIVATE ${CMAKE_SOURCE_DIR}/sourc
 target_link_libraries(test-discretization PRIVATE tci-libs)
 add_test(NAME test-discretization
     COMMAND test-discretization ${CMAKE_SOURCE_DIR}/tests/data/discretization_domains.toml)
+
+# Continuous, integer and categorical input sampling and discretization.
+add_executable(test-discrete-inputs
+    test_discrete_inputs.cpp
+    ${CMAKE_SOURCE_DIR}/source/cfg/inputs.cpp
+    ${CMAKE_SOURCE_DIR}/source/func/BaseFunction.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/grid.cpp
+    ${CMAKE_SOURCE_DIR}/source/sens/accuracy.cpp
+    ${CMAKE_SOURCE_DIR}/source/interp/interp.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/quadrature.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussKronrod.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/GaussLegendre.cpp
+    ${CMAKE_SOURCE_DIR}/source/quad/ClenshawCurtis.cpp
+)
+target_include_directories(test-discrete-inputs PRIVATE ${CMAKE_SOURCE_DIR}/source)
+target_link_libraries(test-discrete-inputs PRIVATE tci-libs)
+add_test(NAME test-discrete-inputs
+    COMMAND test-discrete-inputs ${CMAKE_SOURCE_DIR}/tests/data/mixed_inputs.toml)

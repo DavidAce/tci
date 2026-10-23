@@ -75,16 +75,39 @@ namespace cfg {
             return {*rule, static_cast<int>(*count)};
         }
 
+        // Integers must therefore be exactly representable by double.
+        constexpr std::int64_t maxExactInteger = 9007199254740992LL; // 2^53
+
+        std::vector<std::int64_t> readDiscreteValues(const toml::node &node, std::string_view where) {
+            const auto *array = node.as_array();
+            if(!array || array->size() < 2) fail(where, "'values' must contain at least two integers");
+            std::vector<std::int64_t> values;
+            values.reserve(array->size());
+            for(const auto &item : *array) {
+                const auto value = item.value_exact<std::int64_t>();
+                if(!value) fail(where, "expected an integer");
+                if(*value < -maxExactInteger || *value > maxExactInteger)
+                    fail(where, "integer values must be exactly representable by double (absolute value <= 2^53)");
+                if(std::find(values.begin(), values.end(), *value) != values.end())
+                    fail(where, "duplicate integer value");
+                values.push_back(*value);
+            }
+            return values;
+        }
+
         struct Overrides {
-            std::optional<std::string>           type;
-            std::optional<std::array<double, 2>> domain;
-            std::optional<GeneratedNodes>        nodes;
+            std::optional<std::string>               type;
+            std::optional<std::array<double, 2>>     domain;
+            std::optional<GeneratedNodes>            nodes;
+            std::optional<std::vector<std::int64_t>> values;
         };
 
         Overrides readParameterConfigurations(const toml::table &table, std::string_view where, TableType type) {
             switch(type) {
-                case TableType::Group: checkAllowedKeys(table, where, {"select", "type", "domain", "nodes"}); break;
-                case TableType::Single: checkAllowedKeys(table, where, {"type", "domain", "nodes"}); break;
+                case TableType::Group:
+                    checkAllowedKeys(table, where, {"select", "type", "domain", "nodes", "values"});
+                    break;
+                case TableType::Single: checkAllowedKeys(table, where, {"type", "domain", "nodes", "values"}); break;
             }
 
             Overrides result;
@@ -95,13 +118,21 @@ namespace cfg {
             }
             if(const auto *node = table.get("domain")) result.domain = readDomain(*node, where);
             if(const auto *node = table.get("nodes")) result.nodes = readNodes(*node, where);
+            if(const auto *node = table.get("values")) result.values = readDiscreteValues(*node, where);
             return result;
         }
 
         void applyOverrides(Overrides &target, const Overrides &source) {
+            // Switching input type clears settings inherited from the previous type.
+            if(source.type && source.type != target.type) {
+                target.domain.reset();
+                target.nodes.reset();
+                target.values.reset();
+            }
             if(source.type) target.type = source.type;
             if(source.domain) target.domain = source.domain;
             if(source.nodes) target.nodes = source.nodes;
+            if(source.values) target.values = source.values;
         }
 
         // Python-style selectors: index, start:stop, or start:stop:step.
@@ -241,10 +272,17 @@ namespace cfg {
             const auto &p    = resolved[i];
             const auto  name = fmt::format("x{}", i);
             if(!p.type) fail(name, "missing type after applying defaults and group overrides");
-            if(*p.type != "continuous") fail(name, fmt::format("type '{}' is not implemented in stage 1", *p.type));
-            if(!p.domain) fail(name, "missing domain after applying defaults and group overrides");
-            if(!p.nodes) fail(name, "missing nodes after applying defaults and group overrides");
-            configuration.parameters.push_back({name, ContinuousParameter{*p.domain, *p.nodes}});
+            if(*p.type == "continuous") {
+                if(!p.domain || !p.nodes) fail(name, "continuous input requires 'domain' and 'nodes'");
+                if(p.values) fail(name, "continuous input cannot specify values");
+                configuration.parameters.push_back({name, ContinuousParameter{*p.domain, *p.nodes}});
+            } else if(*p.type == "discrete") {
+                if(!p.values) fail(name, "integer input requires 'values'");
+                if(p.domain || p.nodes) fail(name, "discrete input accepts values");
+                configuration.parameters.push_back({name, DiscreteParameter{*p.values}});
+            } else {
+                fail(name, fmt::format("unknown type '{}' (use 'continuous' or 'discrete')", *p.type));
+            }
         }
         return configuration;
     }

@@ -116,15 +116,16 @@ namespace sens {
                 progress.firstEval[i] = static_cast<std::size_t>(status.nEval);
     }
 
-    void updateSweepStatus(Status &status, const TensorCI &ci, const Grid &nodes, const IntegrationWeights &weights,
-                           const FunctionSamples &samples, const SobolReference &reference,
+    void updateSweepStatus(Status &status, const TensorCI &ci, const Discretization &discretization,
+                           const IntegrationWeights &weights, const FunctionSamples &samples,
+                           const SobolReference &reference,
                            const std::vector<double> &targets, TargetProgress &progress) {
         status.sweeps                 = ci.cIter - 1;
         status.nEval                  = static_cast<int>(ci.f.nEval());
         status.bondDims               = getTTBondDimensions(ci);
         status.statistics             = calculateMoments(ci.tt, weights);
         status.sobolResult            = calculateSobolIndices(ci.tt, weights, status.statistics, reference);
-        const auto predictionError    = measurePredictionError(ci, nodes, samples);
+        const auto predictionError    = measurePredictionError(ci, discretization, samples);
         status.predictionRMSE         = predictionError.rmse;
         status.predictionRelativeRMSE = predictionError.relativeRMSE;
         if(hasExactSobolIndices(reference, status.statistics.dim)) {
@@ -186,21 +187,21 @@ namespace sens {
         return true;
     }
 
-    void runTCISweeps(TensorCI &ci, const Grid &grid, const IntegrationWeights &weights,
+    void runTCISweeps(TensorCI &ci, const Discretization &discretization, const IntegrationWeights &weights,
                       const SobolReference &reference, const FunctionSamples &funcSamples,
                       const NodeSamples &nodeSamples, const std::vector<double> &targets, int maxSweeps,
                       std::vector<Status> &statusLog, TargetProgress &progress) {
-        const bool    hasExact = hasExactSobolIndices(reference, static_cast<int>(grid.size()));
+        const bool    hasExact = hasExactSobolIndices(reference, static_cast<int>(discretization.nodes.size()));
         RecoveryState recovery;
         statusLog.emplace_back();
-        updateSweepStatus(statusLog.back(), ci, grid, weights, funcSamples, reference, targets, progress);
+        updateSweepStatus(statusLog.back(), ci, discretization, weights, funcSamples, reference, targets, progress);
         printSweepStatus(statusLog.back(), reference);
         while(statusLog.back().sweeps < maxSweeps) {
             const Status previous = statusLog.back();
             ci.iterate();
             statusLog.push_back(previous);
             Status &current = statusLog.back();
-            updateSweepStatus(current, ci, grid, weights, funcSamples, reference, targets, progress);
+            updateSweepStatus(current, ci, discretization, weights, funcSamples, reference, targets, progress);
             printSweepStatus(current, reference);
 
             const auto nodeError = measureNodeSampleError(ci, nodeSamples, recovery.insertedPoints);
@@ -212,7 +213,7 @@ namespace sens {
                 const Status beforeRecovery = current;
                 statusLog.push_back(beforeRecovery);
                 Status &recovered = statusLog.back();
-                updateSweepStatus(recovered, ci, grid, weights, funcSamples, reference, targets, progress);
+                updateSweepStatus(recovered, ci, discretization, weights, funcSamples, reference, targets, progress);
                 printSweepStatus(recovered, reference);
                 const auto recoveredAccuracy = measureNodeSampleError(ci, nodeSamples, recovery.insertedPoints);
                 fmt::print("Bond dimensions after recovery: {}\n\n", recovered.bondDims);
@@ -223,9 +224,9 @@ namespace sens {
             statusLog.back().stopMsg = fmt::format("MaxSweeps: maximum half-sweeps reached ({})", maxSweeps);
     }
 
-    std::vector<PredictionRecord> calculatePredictions(const TensorCI &ci, const Grid &nodes,
+    std::vector<PredictionRecord> calculatePredictions(const TensorCI &ci, const Discretization &discretization,
                                                        const FunctionSamples &samples) {
-        const auto interpolatedTT = interp::interpolateTT(ci.tt, nodes);
+        const auto interpolatedTT = interp::interpolateTT(ci.tt, discretization);
 
         std::vector<PredictionRecord> predictions;
         predictions.reserve(samples.size());
@@ -246,12 +247,14 @@ namespace sens {
         const auto discretization = inputCfg.has_value()
                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
                                         : discretizeInputs(function, makeRule);
-        // The exact Sobol indices assume the original input domains.
-        // If TOML changes these domains, the exact values no longer apply.
-        const bool hasMatchingDomains = domainsMatch(function.domains(), discretization.domains);
+        // Benchmark Sobol references assume continuous uniform inputs on the original domains.
+        // Changed domains or discrete input probabilities generally give different Sobol indices.
+        const bool allContinuous = std::all_of(discretization.kinds.begin(), discretization.kinds.end(),
+                                              [](InputKind kind) { return kind == InputKind::Continuous; });
+        const bool hasMatchingDomains = allContinuous && domainsMatch(function.domains(), discretization.domains);
         const auto reference          = hasMatchingDomains ? function.exactSobolIndices() : SobolReference{};
         if(!hasMatchingDomains)
-            fmt::print("Exact Sobol references disabled: TOML input domains differ from benchmark domains.\n");
+            fmt::print("Exact Sobol references disabled: input domains or distributions differ from benchmark.\n");
         const auto &nodes   = discretization.nodes;
         const auto &weights = discretization.integrationWeights;
         if(inputCfg) {
@@ -276,13 +279,13 @@ namespace sens {
         std::vector<Status> statusLog;
 
         printSweepHeader(function);
-        runTCISweeps(ci, nodes, weights, reference, functionSamples, nodeSamples, relTolTargets, maxSweeps, statusLog,
-                     progress);
+        runTCISweeps(ci, discretization, weights, reference, functionSamples, nodeSamples, relTolTargets, maxSweeps,
+                     statusLog, progress);
 
         writeStatusLog(h5file, statusLog);
         printFinalResults(ci, statusLog.back(), reference, functionSamples, nodeSamples, function.dimension());
 
-        const auto predictions = calculatePredictions(ci, nodes, functionSamples);
+        const auto predictions = calculatePredictions(ci, discretization, functionSamples);
         printPredictions(predictions);
         writePredictions(h5file, predictions);
         sil::writeSIL(h5file, sil::calculateSIL(ci.tt, weights));

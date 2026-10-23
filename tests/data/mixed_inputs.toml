@@ -1,0 +1,19 @@
+[function]
+name = "mixed-inputs"
+dimension = 3
+
+[defaults]
+type = "continuous"
+domain = [-1.0, 1.0]
+nodes = {rule = "gl", count = 5}
+
+[[parameter_groups]]
+select = ["1"]
+type = "discrete"
+values = [-2, 0, 4]
+
+[[parameter_groups]]
+select = ["2"]
+type = "discrete"
+values = [-2, 0, 4]
+

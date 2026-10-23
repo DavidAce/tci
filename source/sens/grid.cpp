@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <fmt/format.h>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 #include <utility>
@@ -19,6 +20,7 @@ sens::Discretization sens::discretizeInputs(const BaseFunction &function, const 
     result.nodes.resize(dim);
     result.integrationWeights.resize(dim);
     result.domains.resize(dim);
+    result.kinds.resize(dim, InputKind::Continuous);
 
     for(int k = 0; k < dim; ++k) {
         result.domains[k]   = function.domain(k);
@@ -45,6 +47,7 @@ sens::Discretization sens::discretizeInputs(const BaseFunction            &funct
     result.nodes.resize(dim);
     result.integrationWeights.resize(dim);
     result.domains.resize(dim);
+    result.kinds.resize(dim, InputKind::Continuous);
     std::vector<bool> assigned(dim, false);
 
     // Configured inputs are named in original parameter order. The permutation
@@ -54,9 +57,18 @@ sens::Discretization sens::discretizeInputs(const BaseFunction            &funct
         if(k < 0 || k >= dim || assigned[k]) throw std::invalid_argument("Invalid input permutation");
         assigned[k] = true;
 
-        const auto &input      = configuredInputs.parameters[original];
+        const auto &input = configuredInputs.parameters[original];
+        if(const auto *integer = std::get_if<cfg::DiscreteParameter>(&input.specification)) {
+            result.kinds[k] = InputKind::Discrete;
+            for(const auto value : integer->values) result.nodes[k].push_back(static_cast<double>(value));
+            result.integrationWeights[k].assign(integer->values.size(), 1.0 / integer->values.size());
+            const auto [minimum, maximum] = std::minmax_element(result.nodes[k].begin(), result.nodes[k].end());
+            result.domains[k]             = {*minimum, *maximum};
+            continue;
+        }
+
         const auto *continuous = std::get_if<cfg::ContinuousParameter>(&input.specification);
-        if(!continuous) throw std::invalid_argument(fmt::format("Input {} is not continuous", input.name));
+        if(!continuous) throw std::invalid_argument(fmt::format("Unsupported input {}", input.name));
         const auto *generated = std::get_if<cfg::GeneratedNodes>(&continuous->nodes);
         if(!generated) throw std::invalid_argument(fmt::format("Input {} has no supported node generator", input.name));
 
@@ -96,16 +108,25 @@ bool sens::domainsMatch(const Domains &domains1, const Domains &domains2) {
     return true;
 }
 
-sens::Point sens::sampleContinuousPoint(const Discretization &discretization) {
+sens::Point sens::sampleInputPoint(const Discretization &discretization) {
     static thread_local std::mt19937_64 rng(987654321);
 
     const auto &grid    = discretization.nodes;
     const auto &domains = discretization.domains;
-    if(grid.empty() || domains.size() != grid.size())
-        throw std::invalid_argument("Sampling domains and grid dimensions do not match");
+    if(grid.empty() || domains.size() != grid.size() || discretization.kinds.size() != grid.size() ||
+       discretization.integrationWeights.size() != grid.size())
+        throw std::invalid_argument("Sampling input dimensions do not match");
 
     Point point(grid.size());
     for(std::size_t k = 0; k < grid.size(); ++k) {
+        if(discretization.kinds[k] != InputKind::Continuous) {
+            const auto &weights = discretization.integrationWeights[k];
+            if(weights.size() != grid[k].size() || weights.empty())
+                throw std::invalid_argument("Invalid discrete sampling weights");
+            std::discrete_distribution<std::size_t> distribution(weights.begin(), weights.end());
+            point[k] = grid[k][distribution(rng)];
+            continue;
+        }
         const auto [lo, hi] = domains[k];
         if(!std::isfinite(lo) || !std::isfinite(hi) || !(lo < hi))
             throw std::invalid_argument("Invalid continuous input domain");
@@ -119,6 +140,10 @@ sens::Point sens::sampleContinuousPoint(const Discretization &discretization) {
         }
     }
     return point;
+}
+
+sens::Point sens::sampleContinuousPoint(const Discretization &discretization) {
+    return sampleInputPoint(discretization);
 }
 
 sens::NodeSamples sens::sampleNodePoints(const BaseFunction &function, const Grid &nodes, int count) {

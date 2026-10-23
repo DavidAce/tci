@@ -29,16 +29,11 @@ namespace cfg {
         NodeSpecification     nodes;
     };
 
-    // Reserved for the next step. Stage 1 deliberately reads only continuous parameters.
-    struct IntegerParameter {
+    struct DiscreteParameter {
         std::vector<std::int64_t> values;
     };
 
-    struct CategoricalParameter {
-        std::vector<std::string> categories;
-    };
-
-    using ParameterSpecification = std::variant<ContinuousParameter, IntegerParameter, CategoricalParameter>;
+    using ParameterSpecification = std::variant<ContinuousParameter, DiscreteParameter>;
 
     struct InputParameter {
         std::string            name; // x0, x1, ... refer to original input identities.

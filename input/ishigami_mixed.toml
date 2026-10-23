@@ -1,0 +1,20 @@
+[function]
+name = "ishigami"
+dimension = 3
+
+[defaults]
+type = "continuous"
+domain = [-3.141592653589793, 3.141592653589793]
+nodes = {rule = "gl", count = 15}
+
+# Ishigami's second argument now takes exactly three numeric values.
+[[parameter_groups]]
+select = ["1"]
+type = "discrete"
+values = [-2, 0, 2]
+
+# The Ishigami evaluator receives x2=0 for "off" and x2=1 for "on".
+[[parameter_groups]]
+select = ["2"]
+type = "discrete"
+values = [-1, 0, 1]
