@@ -45,7 +45,7 @@ namespace sens {
         file.writeDataset(static_cast<int>(dim), prfx + "/dimension");
         file.writeDataset(permutedIndices, prfx + "/permutation");
         file.writeDataset(originalIndices, prfx + "/permuted_index_order");
-        file.writeDataset(configuration ? "TOML" : "CLI", prfx + "/source");
+        file.writeDataset(std::string(configuration ? "TOML" : "CLI"), prfx + "/source");
 
         for(std::size_t axis = 0; axis < dim; ++axis) {
             const auto  oidx    = static_cast<std::size_t>(originalIndices[axis]);
