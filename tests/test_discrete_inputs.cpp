@@ -29,6 +29,7 @@ namespace {
 }
 
 int main(int argc, char **argv) {
+    rnd::Rng predictionRng(123456789);
     require(argc == 2, "usage: test-discrete-inputs <path-to-toml>");
     const auto config = cfg::readInputConfiguration(argv[1]);
     require(config.dimension == 3, "wrong dimension");
@@ -54,7 +55,7 @@ int main(int argc, char **argv) {
 
     // The TT's original argument order has been permuted; sampling and function
     // evaluation must agree on the TT-axis order.
-    const auto         samples = sens::sampleFunctionValues(function, d, 10000);
+    const auto         samples = sens::sampleFunctionValues(function, d, 10000, predictionRng);
     std::array<int, 3> integers{0, 0, 0};
     std::array<int, 3> secondDiscrete{0, 0, 0};
     for(const auto &sample : samples) {

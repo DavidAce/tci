@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rnd/rnd.hpp"
 #include "samples.hpp"
 #include "types.hpp"
 #include <limits>
@@ -31,10 +32,11 @@ namespace sens {
         double maxAbsoluteError = std::numeric_limits<double>::quiet_NaN();
     };
 
-    FunctionSamples sampleFunctionValues(const BaseFunction &function, const Discretization &discretization, int count);
+    FunctionSamples sampleFunctionValues(const BaseFunction &function, const Discretization &discretization, int count,
+                                         rnd::Rng &rng);
     NodeSampleError measureNodeSampleError(const TensorCI &ci, const NodeSamples &samples,
                                            const std::set<NodeIndices> &insertedPoints);
     PredictionError measurePredictionError(const TensorCI &ci, const Discretization &discretization,
-                                            const FunctionSamples &samples);
+                                           const FunctionSamples &samples);
 
 }

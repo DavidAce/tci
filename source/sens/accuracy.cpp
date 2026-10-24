@@ -41,14 +41,14 @@ sens::PredictionError sens::measurePredictionError(const TensorCI &ci, const Dis
 }
 
 sens::FunctionSamples sens::sampleFunctionValues(const BaseFunction &function, const Discretization &discretization,
-                                                 int count) {
+                                                 int count, rnd::Rng &rng) {
     if(count <= 0) throw std::invalid_argument("Sample count must be positive");
 
     sens::FunctionSamples samples;
     samples.reserve(count);
 
     for(int n = 0; n < count; ++n) {
-        auto point = sens::sampleInputPoint(discretization);
+        auto point = sens::sampleInputPoint(discretization, rng);
 
         samples.push_back({.point = point, .value = function.evaluate(point)});
     }

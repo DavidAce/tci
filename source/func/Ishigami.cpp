@@ -22,10 +22,12 @@ SobolReference Ishigami::exactSobolIndicesOriginal() const {
     const double p4 = std::pow(pi, 4);
     const double p8 = p4 * p4;
 
-    const double variance_x0  = 0.5 * std::pow(1 + b * p4 / 5, 2);
-    const double variance_x1  = a * a / 8;
+    const double variance_x0    = 0.5 * std::pow(1 + b * p4 / 5, 2);
+    const double variance_x1    = a * a / 8;
     const double variance_x0_x2 = 8 * b * b * p8 / 225;
-    const double v   = variance_x0 + variance_x1 + variance_x0_x2;
+    const double v              = variance_x0 + variance_x1 + variance_x0_x2;
 
-    return {.total = {(variance_x0 + variance_x0_x2) / v, variance_x1 / v, variance_x0_x2 / v}, .first = {variance_x0 / v, variance_x1 / v, 0.0}, .second = {{0, 2, variance_x0_x2 / v}}};
+    return {.total  = {(variance_x0 + variance_x0_x2) / v, variance_x1 / v, variance_x0_x2 / v},
+            .first  = {variance_x0 / v, variance_x1 / v, 0.0},
+            .second = {{0, 2, variance_x0_x2 / v}}};
 }

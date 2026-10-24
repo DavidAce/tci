@@ -65,18 +65,18 @@ namespace sens {
             h5pp::vstr_t      stopMsg;
         };
         const H5Status        entry{status.sweeps,
-                                    status.sweepsUnchanged,
-                                    status.minSweepsUnchanged,
-                                    status.changeTol,
-                                    status.nEval,
-                                    status.predictionRMSE,
-                                    status.predictionRelativeRMSE,
-                                    status.statistics.mean,
-                                    status.statistics.variance,
-                                    status.sobolResult.rmse,
-                                    status.sobolResult.maxDiff,
-                                    status.bondDims,
-                                    h5pp::vstr_t(status.stopMsg)};
+                             status.sweepsUnchanged,
+                             status.minSweepsUnchanged,
+                             status.changeTol,
+                             status.nEval,
+                             status.predictionRMSE,
+                             status.predictionRelativeRMSE,
+                             status.statistics.mean,
+                             status.statistics.variance,
+                             status.sobolResult.rmse,
+                             status.sobolResult.maxDiff,
+                             status.bondDims,
+                             h5pp::vstr_t(status.stopMsg)};
         static h5pp::hid::h5t statusType;
         constexpr const char *statusPath = "tci/status";
         if(!statusType.valid()) {

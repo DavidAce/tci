@@ -2,6 +2,7 @@
 #pragma once
 
 #include "quad/quadrature.hpp"
+#include "rnd/rnd.hpp"
 #include "samples.hpp"
 #include "types.hpp"
 #include <string>
@@ -30,6 +31,7 @@ namespace sens {
                                                   const cfg::InputConfiguration &configuredInputs,
                                                   const std::vector<int>        &permutation);
     [[nodiscard]] bool           domainsMatch(const Domains &domains1, const Domains &domains2);
-    [[nodiscard]] Point          sampleInputPoint(const Discretization &discretization);
-    [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count);
+    [[nodiscard]] Point          sampleInputPoint(const Discretization &discretization, rnd::Rng &rng);
+    [[nodiscard]] NodeSamples    sampleNodePoints(const BaseFunction &function, const sens::Grid &grid, int count,
+                                                  rnd::Rng &rng);
 }

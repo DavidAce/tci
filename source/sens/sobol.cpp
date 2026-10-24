@@ -73,11 +73,11 @@ namespace sens {
             total[i] = (statistics.m2 - conditional_mean_square(tt, weights, mask)) / statistics.variance;
         }
         for(int i = 0; i < dim; ++i)
-            appendSobolIndex(indices, fmt::format("S{}", i), first[i], hasExact ? reference.first[i] : nan,
-                             hasExact, maxDiff);
+            appendSobolIndex(indices, fmt::format("S{}", i), first[i], hasExact ? reference.first[i] : nan, hasExact,
+                             maxDiff);
         for(int i = 0; i < dim; ++i)
-            appendSobolIndex(indices, fmt::format("ST{}", i), total[i], hasExact ? reference.total[i] : nan,
-                             hasExact, maxDiff);
+            appendSobolIndex(indices, fmt::format("ST{}", i), total[i], hasExact ? reference.total[i] : nan, hasExact,
+                             maxDiff);
         auto pairs = reference.second;
         if(!hasExact) {
             pairs.clear();
@@ -89,8 +89,8 @@ namespace sens {
             mask[pair.i]     = false;
             mask[pair.j]     = false;
             const double vij = conditional_mean_square(tt, weights, mask) - statistics.mean2 - V1[pair.i] - V1[pair.j];
-            appendSobolIndex(indices, fmt::format("S{},{}", pair.i, pair.j), vij / statistics.variance,
-                             pair.value, hasExact, maxDiff);
+            appendSobolIndex(indices, fmt::format("S{},{}", pair.i, pair.j), vij / statistics.variance, pair.value,
+                             hasExact, maxDiff);
         }
         double rmse = nan;
         if(hasExact && !indices.empty()) {

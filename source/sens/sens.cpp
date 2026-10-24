@@ -43,7 +43,7 @@ namespace sens {
         double              operator()(const std::vector<double> &point) const { return function.evaluate(point); }
     };
 
-    std::vector<int> selectInitialPivot(const BaseFunction &function, const Grid &grid) {
+    std::vector<int> selectInitialPivot(const BaseFunction &function, const Grid &grid, rnd::Rng &rng) {
         if(grid.empty()) throw std::invalid_argument("Empty quadrature grids");
         const int           dim = static_cast<int>(grid.size());
         std::vector<int>    pivot(dim);
@@ -51,7 +51,7 @@ namespace sens {
         for(int trial = 0; trial < 20; ++trial) {
             for(int k = 0; k < dim; ++k) {
                 if(grid[k].empty()) throw std::invalid_argument("Empty quadrature grid");
-                pivot[k] = rnd::uniform_integer_box<int>(0, static_cast<int>(grid[k].size()) - 1);
+                pivot[k] = rnd::uniform_integer_box<int>(0, static_cast<int>(grid[k].size()) - 1, rng);
                 point[k] = grid[k][pivot[k]];
             }
             const double value = std::abs(function.evaluate(point));
@@ -63,14 +63,14 @@ namespace sens {
         throw std::runtime_error("Failed to find a nonzero initial pivot within 20 trials");
     }
 
-    xfac::TensorCI2Param makeTCIParameters(const BaseFunction &function, const Grid &grid, int bondDim) {
+    xfac::TensorCI2Param makeTCIParameters(const BaseFunction &function, const Grid &grid, int bondDim, rnd::Rng &rng) {
         xfac::TensorCI2Param param;
         param.bondDim           = bondDim;
         param.reltol            = 1e-12;
         param.fullPiv           = false;
         param.useCachedFunction = true;
         param.nRookIter         = 3;
-        param.pivot1            = selectInitialPivot(function, grid);
+        param.pivot1            = selectInitialPivot(function, grid, rng);
         return param;
     }
 
@@ -243,10 +243,16 @@ namespace sens {
 
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
-                                const std::optional<cfg::InputConfiguration> &inputCfg) {
+                                const std::optional<cfg::InputConfiguration> &inputCfg, rnd::RandomEngines &rngs) {
         auto h5file =
             h5pp::File(fmt::format("{}/{}.{}.h5", cfg::outdir, function.name(), cfg::seed), h5pp::FileAccess::REPLACE);
         ::env::writeEnvironmentMetadata(h5file);
+        h5file.writeDataset(rngs.seeds.init, "param/rng/master_seed");
+        h5file.writeDataset(rngs.seeds.pivot, "param/rng/pivot_seed");
+        h5file.writeDataset(rngs.seeds.nodeSamples, "param/rng/node_sample_seed");
+        h5file.writeDataset(rngs.seeds.predictions, "param/rng/prediction_seed");
+        h5file.writeDataset(rngs.seeds.xfac, "param/rng/xfac_seed");
+        h5file.writeDataset(std::string("splitmix64-tags-v1"), "param/rng/seed_derivation");
         const auto discretization = inputCfg.has_value()
                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
                                         : discretizeInputs(function, makeRule);
@@ -266,7 +272,7 @@ namespace sens {
             for(const auto &axis : nodes) nodeCounts.push_back(axis.size());
             fmt::print("TOML discretization nodes per parameter: [{}]\n", fmt::join(nodeCounts, ", "));
         }
-        const auto param = makeTCIParameters(function, nodes, bondDim);
+        const auto param = makeTCIParameters(function, nodes, bondDim, rngs.pivot);
 
         writeSimulationParameters(h5file, param, function, relTolTargets);
         writeInputMetadata(h5file, discretization, inputCfg, cfg::permutation, cfg::quadratureRuleName);
@@ -275,9 +281,9 @@ namespace sens {
         TensorCI          ci(evaluate, nodes, param);
 
         // Samples used to identify missing information on the node grid.
-        const auto nodeSamples = sampleNodePoints(function, nodes, AnalysisSettings::nNodeSamples);
+        const auto nodeSamples = sampleNodePoints(function, nodes, AnalysisSettings::nNodeSamples, rngs.nodeSamples);
         // Independent samples used only to measure prediction accuracy.
-        const auto functionSamples = sampleFunctionValues(function, discretization, cfg::nsamples);
+        const auto functionSamples = sampleFunctionValues(function, discretization, cfg::nsamples, rngs.predictions);
 
         TargetProgress      progress(relTolTargets.size());
         std::vector<Status> statusLog;

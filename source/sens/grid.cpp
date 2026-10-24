@@ -108,9 +108,7 @@ bool sens::domainsMatch(const Domains &domains1, const Domains &domains2) {
     return true;
 }
 
-sens::Point sens::sampleInputPoint(const Discretization &discretization) {
-    static thread_local std::mt19937_64 rng(987654321);
-
+sens::Point sens::sampleInputPoint(const Discretization &discretization, rnd::Rng &rng) {
     const auto &grid    = discretization.nodes;
     const auto &domains = discretization.domains;
     if(grid.empty() || domains.size() != grid.size() || discretization.kinds.size() != grid.size() ||
@@ -142,9 +140,7 @@ sens::Point sens::sampleInputPoint(const Discretization &discretization) {
     return point;
 }
 
-sens::NodeSamples sens::sampleNodePoints(const BaseFunction &function, const Grid &nodes, int count) {
-    std::mt19937_64 rng(123456789);
-
+sens::NodeSamples sens::sampleNodePoints(const BaseFunction &function, const Grid &nodes, int count, rnd::Rng &rng) {
     NodeSamples samples;
     samples.reserve(count);
 

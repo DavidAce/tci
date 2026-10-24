@@ -8,6 +8,7 @@
 #include "rnd/rnd.hpp"
 #include "sens/sens.hpp"
 #include <chrono>
+#include <cstdlib>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <stdexcept>
@@ -15,9 +16,14 @@
 #include <xfac/grid.h>
 #include <xfac/tensor/tensor_ci.h>
 #include <xfac/tensor/tensor_ci_2.h>
+
 int main(int argc, char **argv) {
-    const auto inputConfiguration = cli::parse(argc, argv);
-    rnd::seed(cfg::seed);
+    const auto         inputConfiguration = cli::parse(argc, argv);
+    rnd::RandomEngines rngs(cfg::seed);
+    std::srand(rngs.seeds.xfac);
+
+    fmt::print("RNG seeds: init={} pivot={} nodeSamples={} predictions={} xfac={}\n", rngs.seeds.init, rngs.seeds.pivot,
+               rngs.seeds.nodeSamples, rngs.seeds.predictions, rngs.seeds.xfac);
 
     using namespace cfg;
     using namespace sens;
@@ -32,19 +38,19 @@ int main(int argc, char **argv) {
     auto t_start = std::chrono::steady_clock::now();
     if(cfg::functionNameHas("ishigami")) {
         Ishigami function(cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
     }
     if(cfg::functionNameHas("morris")) {
         Morris2006 function(dimension, active, cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
     }
     if(cfg::functionNameHas("legendre")) {
         LegendrePoly3 function(dimension, cfg::permutation);
-        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
     }
     if(cfg::functionNameHas("npoly")) {
         NonlinearPolynomial function(dimension, 0.1, cfg::permutation);
-        sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature, inputConfiguration);
+        sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
     }
     auto t_end     = std::chrono::steady_clock::now();
     auto t_elapsed = t_end - t_start;

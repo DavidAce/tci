@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <string>
 #include <vector>
 namespace cfg {
@@ -11,7 +12,7 @@ namespace cfg {
     inline int                 dimension          = 8;
     inline int                 active             = 5;
     inline int                 bondDim            = 8;
-    inline long                seed               = 42;
+    inline std::uint64_t       seed               = 42;
     inline int                 maxSweeps          = 20;
     inline double              convTol            = 1e-12; /*!< Convergence tolerance */
     inline int                 nsamples           = 128;

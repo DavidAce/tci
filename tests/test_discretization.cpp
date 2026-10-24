@@ -37,6 +37,7 @@ namespace {
 } // namespace
 
 int main(int argc, char **argv) {
+    rnd::Rng predictionRng(123456789);
     require(argc == 2, "usage: test-discretization <path-to-toml>");
     const auto             config = cfg::readInputConfiguration(argv[1]);
     TestFunction           function;
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
             "reference domains should match after permutation");
 
     // Verify that the actual off-grid function sampler uses configured domains.
-    const auto samples = sens::sampleFunctionValues(function, discretization, 200);
+    const auto samples = sens::sampleFunctionValues(function, discretization, 200, predictionRng);
     require(samples.size() == 200, "wrong number of function samples");
     checkSamples(discretization, samples);
     for(const auto &sample : samples)
@@ -87,5 +88,5 @@ int main(int argc, char **argv) {
     const auto legacy = sens::discretizeInputs(function, gl5);
     require(sens::domainsMatch(function.domains(), legacy.domains), "legacy domains should match reference domains");
     for(const auto &[lo, hi] : legacy.domains) require(lo == 0.0 && hi == 1.0, "legacy domain changed unexpectedly");
-    checkSamples(legacy, sens::sampleFunctionValues(function, legacy, 50));
+    checkSamples(legacy, sens::sampleFunctionValues(function, legacy, 50, predictionRng));
 }
