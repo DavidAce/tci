@@ -15,7 +15,7 @@ namespace cli {
         app.allow_extras(false);
         app.option_defaults()->always_capture_default();
         app.add_option("--function", functionName, "Test function")
-            ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly"}));
+            ->check(CLI::IsMember({"ishigami", "morris", "legendre", "npoly", "lbit"}));
         auto *quadratureOption = app.add_option("--quadrature", quadratureRuleName, "Quadrature rule")
                                      ->check(CLI::IsMember({"gk15", "gl", "cc"}));
         app.add_option("--outdir", outdir, "Output directory for the results (HDF5 file)");
@@ -25,9 +25,12 @@ namespace cli {
         app.add_option("--bond-dim", bondDim, "Maximum MPS bond dimension")->check(CLI::PositiveNumber);
         app.add_option("--max-sweeps", maxSweeps, "Maximum half-sweeps")->check(CLI::PositiveNumber);
         app.add_option("--seed", seed, "PCG random seed");
+        app.add_option("--lbit-seed", lbitSeed, "Seed for the fixed l-bit fields and couplings");
+        app.add_option("--lbit-xi", lbitXi, "Decay length of l-bit coupling amplitudes in index gaps")
+            ->check(CLI::PositiveNumber);
         auto *dimensionOption =
             app.add_option("--dimension", dimension,
-                           "The number of input parameters for the function (for morris, legendre and npoly)")
+                           "The number of input parameters for the function (for morris, legendre, npoly and lbit)")
                 ->check(CLI::PositiveNumber);
         app.add_option("--active", active, "The number of input parameters for the function (legendre and npoly)")
             ->check(CLI::PositiveNumber);

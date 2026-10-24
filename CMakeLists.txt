@@ -30,6 +30,7 @@ add_executable(TCI
         source/func/BaseFunction.cpp
         source/func/Ishigami.cpp
         source/func/Morris2006.cpp
+        source/func/lbit.cpp
         source/func/LegendrePoly3.cpp
         source/func/NonlinearPolynomial.cpp
         source/func/PermutedFunction.cpp

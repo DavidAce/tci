@@ -13,6 +13,8 @@ namespace cfg {
     inline int                 active             = 5;
     inline int                 bondDim            = 8;
     inline std::uint64_t       seed               = 42;
+    inline std::uint64_t       lbitSeed           = 0;
+    inline double              lbitXi             = 1.0;
     inline int                 maxSweeps          = 20;
     inline double              convTol            = 1e-12; /*!< Convergence tolerance */
     inline int                 nsamples           = 128;

@@ -239,7 +239,7 @@ namespace cfg {
         const std::size_t dimension = static_cast<std::size_t>(*dimPtr);
 
         const auto namePtr = getRequiredNode(functionTable, "name", "function").value<std::string>();
-        if(!namePtr) fail("function", "'name' must be a valid function name in [ishigami, morris, legendre, npoly]");
+        if(!namePtr) fail("function", "'name' must be a valid function name in [ishigami, morris, legendre, npoly, lbit]");
         const std::string functionName = static_cast<std::string>(*namePtr);
 
         const auto defaultsTable =

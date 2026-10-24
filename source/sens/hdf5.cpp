@@ -1,5 +1,6 @@
 #include "hdf5.hpp"
 #include "func/BaseFunction.hpp"
+#include "func/lbit.hpp"
 #include "h5t.hpp"
 #include "rnd/rnd.hpp"
 #include "status.hpp"
@@ -36,6 +37,11 @@ namespace sens {
         }
         if(!file.linkExists(tciPath)) file.createTable(tciType, tciPath, "TCI parameters");
         file.appendTableRecords(tciParam, tciPath);
+
+        if(const auto *lbit = dynamic_cast<const Lbit *>(&f)) {
+            file.writeDataset(lbit->seed(), "param/lbit/seed");
+            file.writeDataset(lbit->xi(), "param/lbit/xi");
+        }
     }
 
     void writePredictions(h5pp::File &file, const std::vector<PredictionRecord> &predictions) {

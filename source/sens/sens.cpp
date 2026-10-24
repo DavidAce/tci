@@ -244,8 +244,11 @@ namespace sens {
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
                                 const std::optional<cfg::InputConfiguration> &inputCfg, rnd::RandomEngines &rngs) {
-        auto h5file = h5pp::File(fmt::format("{}/{}.{}.h5", cfg::outdir, function.name(), rngs.seeds.init),
-                                 h5pp::FileAccess::REPLACE);
+        const auto lbitSuffix = function.name() == "lbit"
+                                    ? fmt::format(".lbit-seed{}.xi{:.17g}", cfg::lbitSeed, cfg::lbitXi)
+                                    : std::string{};
+        auto h5file = h5pp::File(fmt::format("{}/{}.{}{}.h5", cfg::outdir, function.name(), rngs.seeds.init, lbitSuffix),
+                               h5pp::FileAccess::REPLACE);
         writeRandomSeeds(h5file, rngs.seeds);
         env::writeEnvironmentMetadata(h5file);
 

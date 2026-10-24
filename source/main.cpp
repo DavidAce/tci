@@ -1,6 +1,7 @@
 #include "cfg/cfg.hpp"
 #include "cli/cli.hpp"
 #include "func/Ishigami.hpp"
+#include "func/lbit.hpp"
 #include "func/LegendrePoly3.hpp"
 #include "func/Morris2006.hpp"
 #include "func/NonlinearPolynomial.hpp"
@@ -51,6 +52,11 @@ int main(int argc, char **argv) {
     if(cfg::functionNameHas("npoly")) {
         NonlinearPolynomial function(dimension, 0.1, cfg::permutation);
         sens::runSensitivityAnalysis(function, {}, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
+    }
+    if(cfg::functionNameHas("lbit")) {
+        Lbit function(dimension, lbitSeed, lbitXi, cfg::permutation, inputConfiguration);
+        fmt::print("lbit seed: {} | xi: {}\n", function.seed(), function.xi());
+        sens::runSensitivityAnalysis(function, targets, bondDim, maxSweeps, makeQuadrature, inputConfiguration, rngs);
     }
     auto t_end     = std::chrono::steady_clock::now();
     auto t_elapsed = t_end - t_start;
