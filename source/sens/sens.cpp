@@ -244,15 +244,11 @@ namespace sens {
     void runSensitivityAnalysis(const BaseFunction &function, const std::vector<double> &relTolTargets, int bondDim,
                                 int maxSweeps, const QuadratureRuleFactory &makeRule,
                                 const std::optional<cfg::InputConfiguration> &inputCfg, rnd::RandomEngines &rngs) {
-        auto h5file =
-            h5pp::File(fmt::format("{}/{}.{}.h5", cfg::outdir, function.name(), cfg::seed), h5pp::FileAccess::REPLACE);
-        ::env::writeEnvironmentMetadata(h5file);
-        h5file.writeDataset(rngs.seeds.init, "param/rng/master_seed");
-        h5file.writeDataset(rngs.seeds.pivot, "param/rng/pivot_seed");
-        h5file.writeDataset(rngs.seeds.nodeSamples, "param/rng/node_sample_seed");
-        h5file.writeDataset(rngs.seeds.predictions, "param/rng/prediction_seed");
-        h5file.writeDataset(rngs.seeds.xfac, "param/rng/xfac_seed");
-        h5file.writeDataset(std::string("splitmix64-tags-v1"), "param/rng/seed_derivation");
+        auto h5file = h5pp::File(fmt::format("{}/{}.{}.h5", cfg::outdir, function.name(), rngs.seeds.init),
+                                 h5pp::FileAccess::REPLACE);
+        writeRandomSeeds(h5file, rngs.seeds);
+        env::writeEnvironmentMetadata(h5file);
+
         const auto discretization = inputCfg.has_value()
                                         ? discretizeInputs(function, inputCfg.value(), cfg::permutation)
                                         : discretizeInputs(function, makeRule);

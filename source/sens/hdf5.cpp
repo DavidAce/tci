@@ -1,6 +1,7 @@
 #include "hdf5.hpp"
 #include "func/BaseFunction.hpp"
 #include "h5t.hpp"
+#include "rnd/rnd.hpp"
 #include "status.hpp"
 #include <h5pp/h5pp.h>
 #include <xfac/tensor/tensor_ci_2.h>
@@ -113,5 +114,13 @@ namespace sens {
 
     void writeStatusLog(h5pp::File &file, const std::vector<Status> &statuses) {
         for(const auto &status : statuses) appendStatus(file, status);
+    }
+
+    void writeRandomSeeds(h5pp::File &file, const rnd::Seeds &seeds) {
+        file.writeDataset(seeds.init, "param/rng/seed_init");
+        file.writeDataset(seeds.pivot, "param/rng/seed_pivot_sampling");
+        file.writeDataset(seeds.nodeSamples, "param/rng/seed_node_sampling");
+        file.writeDataset(seeds.predictions, "param/rng/seed_prediction");
+        file.writeDataset(seeds.xfac, "param/rng/seed_xfac");
     }
 }

@@ -15,7 +15,9 @@ namespace h5pp {
 namespace xfac {
     struct TensorCI2Param;
 }
-
+namespace rnd {
+    struct Seeds;
+}
 namespace sens {
     struct PredictionRecord;
     struct Status;
@@ -30,4 +32,6 @@ namespace sens {
     void writePredictions(h5pp::File &file, const std::vector<PredictionRecord> &predictions);
     void appendStatus(h5pp::File &file, const Status &status);
     void writeStatusLog(h5pp::File &file, const std::vector<Status> &statuses);
+
+    void writeRandomSeeds(h5pp::File &file, const rnd::Seeds &seeds) ;
 }
